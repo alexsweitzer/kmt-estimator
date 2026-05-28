@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="KMT Estimator">
+<meta name="theme-color" content="#1a2744">
+<title>KMT Job Estimator — Kentmorr Marine Transport</title>
+<style>
+:root {
+  --navy:#1a2744;--navy-light:#243258;--navy-mid:#2e3f6b;
+  --accent:#e8a020;--accent-light:#f5b83d;
+  --green:#1e9e5a;--green-bg:#e8f8f0;
+  --red:#cc2b2b;--red-bg:#fdf0f0;
+  --blue:#1a6fcc;--blue-bg:#e8f0fb;
+  --amber-bg:#fef3e2;--amber:#8a5000;
+  --gray-50:#f8f8f6;--gray-100:#efefec;--gray-200:#deddd8;
+  --gray-400:#9c9b94;--gray-600:#5c5b56;--gray-800:#2c2c2a;
+  --text:#1e1e1c;--text-muted:#5c5b56;--border:#ddddd8;
+  --radius:8px;--radius-lg:12px;
+  --shadow:0 1px 3px rgba(0,0,0,0.08),0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,0.1),0 2px 4px rgba(0,0,0,0.06);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--gray-50);color:var(--text);font-size:16px}
+
+/* SETUP SCREEN */
+.setup-screen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:9100;padding:1rem}
+.setup-box{background:white;border-radius:var(--radius-lg);padding:2rem 1.75rem;width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,0.4)}
+.setup-logo{text-align:center;margin-bottom:1.25rem}
+.setup-logo svg{fill:var(--navy);width:36px;height:36px}
+.setup-logo h1{font-size:19px;font-weight:700;color:var(--navy);margin-top:6px}
+.setup-logo p{font-size:13px;color:var(--text-muted);margin-top:2px}
+.setup-note{background:var(--blue-bg);border:1px solid #b8d0f5;border-radius:var(--radius);padding:10px 14px;font-size:13px;color:#0f4a8a;margin-bottom:1.25rem;line-height:1.5}
+.setup-field{margin-bottom:1rem}
+.setup-field label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:5px}
+.setup-field input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:14px;color:var(--text);font-family:monospace}
+.setup-field input:focus{outline:none;border-color:var(--navy-mid);box-shadow:0 0 0 3px rgba(26,39,68,0.1)}
+.setup-btn{width:100%;padding:11px;background:var(--navy);color:white;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;margin-top:0.5rem;transition:background 0.15s}
+.setup-btn:hover{background:var(--navy-light)}
+.setup-err{background:var(--red-bg);border:1px solid #f0c0c0;border-radius:var(--radius);padding:8px 12px;font-size:13px;color:var(--red);margin-bottom:1rem;display:none}
+.setup-err.show{display:block}
+
+/* LOGIN */
+.login-screen{position:fixed;inset:0;background:var(--navy);display:flex;align-items:center;justify-content:center;z-index:9000;padding:1rem}
+.login-box{background:white;border-radius:var(--radius-lg);padding:2rem 1.75rem;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.4)}
+.login-logo{text-align:center;margin-bottom:1.5rem}
+.login-logo svg{fill:var(--navy);width:36px;height:36px}
+.login-logo h1{font-size:20px;font-weight:700;color:var(--navy);margin-top:8px}
+.login-logo p{font-size:13px;color:var(--text-muted);margin-top:3px}
+.login-field{margin-bottom:1rem}
+.login-field label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:5px}
+.login-field input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius);font-size:15px;color:var(--text);transition:border-color 0.15s}
+.login-field input:focus{outline:none;border-color:var(--navy-mid);box-shadow:0 0 0 3px rgba(26,39,68,0.1)}
+.login-btn{width:100%;padding:11px;background:var(--navy);color:white;border:none;border-radius:var(--radius);font-size:15px;font-weight:600;cursor:pointer;margin-top:0.5rem;transition:background 0.15s}
+.login-btn:hover{background:var(--navy-light)}
+.login-error{background:var(--red-bg);border:1px solid #f0c0c0;border-radius:var(--radius);padding:8px 12px;font-size:13px;color:var(--red);margin-bottom:1rem;display:none}
+.login-error.show{display:block}
+.login-attempts{font-size:12px;color:var(--text-muted);text-align:center;margin-top:0.75rem}
+
+/* APP */
+.app{display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:var(--navy);color:white;padding:0 1rem;display:flex;align-items:center;justify-content:space-between;height:56px;position:sticky;top:0;z-index:100;box-shadow:var(--shadow-md)}
+.topbar-logo{display:flex;align-items:center;gap:10px}
+.topbar-logo svg{fill:var(--accent);width:28px;height:28px;flex-shrink:0}
+.topbar-title{font-size:15px;font-weight:600;letter-spacing:-0.01em}
+.topbar-title span{color:var(--accent)}
+.topbar-actions{display:flex;gap:6px;align-items:center}
+.topbar-btn{background:rgba(255,255,255,0.12);border:none;color:white;padding:6px 12px;border-radius:var(--radius);font-size:12px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background 0.15s}
+.topbar-btn:hover{background:rgba(255,255,255,0.2)}
+.topbar-btn.accent{background:var(--accent);color:var(--navy)}
+.topbar-btn.accent:hover{background:var(--accent-light)}
+.topbar-user{font-size:11px;color:rgba(255,255,255,0.6);padding:0 4px}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#4ade80;display:inline-block;margin-right:4px}
+.sync-dot.syncing{background:var(--accent);animation:pulse 1s infinite}
+.sync-dot.error{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
+/* TABS */
+.tab-bar{background:white;border-bottom:1px solid var(--border);display:flex;overflow-x:auto;scrollbar-width:none;position:sticky;top:56px;z-index:99}
+.tab-bar::-webkit-scrollbar{display:none}
+.tab-btn{flex:1;min-width:80px;padding:0 4px;height:44px;border:none;background:none;font-size:13px;font-weight:500;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all 0.15s;white-space:nowrap}
+.tab-btn.active{color:var(--navy);border-bottom-color:var(--accent)}
+.tab-btn:hover:not(.active){background:var(--gray-50)}
+
+/* SECTIONS */
+.section{display:none;padding:1rem;max-width:900px;margin:0 auto;width:100%}
+.section.active{display:block}
+
+/* CARDS */
+.card{background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.25rem;box-shadow:var(--shadow);margin-bottom:1rem}
+.card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid var(--border)}
+
+/* FORM */
+.form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field.full{grid-column:1/-1}
+.field label{font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.04em}
+.field input,.field select,.field textarea{padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:14px;color:var(--text);background:white;width:100%;transition:border-color 0.15s;-webkit-appearance:none;appearance:none}
+.field input:focus,.field select:focus{outline:none;border-color:var(--navy-mid);box-shadow:0 0 0 3px rgba(26,39,68,0.08)}
+.field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235c5b56' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+.checkbox-group{display:flex;flex-wrap:wrap;gap:10px}
+.chk-label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);cursor:pointer}
+.chk-label input[type=checkbox]{width:16px;height:16px;accent-color:var(--navy);cursor:pointer}
+
+/* METRICS */
+.metrics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:1rem}
+.metric{background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px}
+.metric .m-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:3px}
+.metric .m-value{font-size:18px;font-weight:600;color:var(--text)}
+.metric .m-value.pos{color:var(--green)}
+.metric .m-value.neg{color:var(--red)}
+.metric.highlight{background:var(--navy);border-color:var(--navy-light)}
+.metric.highlight .m-label{color:rgba(255,255,255,0.6)}
+.metric.highlight .m-value{color:white}
+
+/* RATE TABLE */
+.rate-table{width:100%;border-collapse:collapse;font-size:13px}
+.rate-table th{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);text-align:left;padding:6px 10px;border-bottom:1px solid var(--border)}
+.rate-table td{padding:7px 10px;border-bottom:1px solid var(--gray-100)}
+.rate-table tr:last-child td{border-bottom:none}
+.rate-table tr.sel-row td{background:var(--blue-bg);font-weight:600}
+
+/* BUTTONS */
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:1rem}
+.btn{padding:9px 18px;border-radius:var(--radius);border:1px solid var(--border);background:white;color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--gray-50)}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.btn.primary{background:var(--navy);border-color:var(--navy);color:white}
+.btn.primary:hover{background:var(--navy-light)}
+.btn.accent{background:var(--accent);border-color:var(--accent);color:var(--navy);font-weight:600}
+.btn.accent:hover{background:var(--accent-light)}
+.btn.danger{background:var(--red-bg);border-color:#f0c0c0;color:var(--red)}
+.btn.danger:hover{background:#fce4e4}
+.btn.sm{padding:5px 10px;font-size:12px}
+
+/* BIDS */
+.bid-list{display:flex;flex-direction:column;gap:8px}
+.bid-card{background:white;border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;cursor:pointer;transition:box-shadow 0.15s,border-color 0.15s}
+.bid-card:hover{box-shadow:var(--shadow-md);border-color:var(--gray-200)}
+.bid-card-top{display:flex;justify-content:space-between;align-items:flex-start}
+.bid-card-name{font-size:15px;font-weight:600;color:var(--text)}
+.bid-card-sub{font-size:12px;color:var(--text-muted);margin-top:3px}
+.bid-card-price{font-size:16px;font-weight:700;color:var(--navy);text-align:right}
+.bid-card-profit{font-size:12px;font-weight:500;text-align:right;margin-top:2px}
+.bid-card-meta{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap}
+.badge.navy{background:#e8eaf5;color:var(--navy)}
+.badge.green{background:var(--green-bg);color:#0e6e3a}
+.badge.red{background:var(--red-bg);color:var(--red)}
+.badge.blue{background:var(--blue-bg);color:var(--blue)}
+.badge.amber{background:var(--amber-bg);color:var(--amber)}
+.badge.gray{background:var(--gray-100);color:var(--gray-600)}
+
+/* SEARCH */
+.search-row{display:flex;gap:8px;margin-bottom:1rem}
+.search-row input{flex:1;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:14px;color:var(--text);background:white;-webkit-appearance:none}
+.search-row select{padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none;min-width:130px}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:flex-end;justify-content:center;z-index:999;padding:0}
+.modal{background:white;border-radius:var(--radius-lg) var(--radius-lg) 0 0;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;padding:1.25rem}
+.modal-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem}
+.modal-title{font-size:17px;font-weight:700;color:var(--navy)}
+.modal-close{background:var(--gray-100);border:none;width:28px;height:28px;border-radius:50%;font-size:16px;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.detail-row{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--gray-100);font-size:13px}
+.detail-row:last-child{border-bottom:none}
+.detail-row .dl{color:var(--text-muted)}
+.detail-row .dv{font-weight:600;color:var(--text);text-align:right;max-width:60%}
+.detail-section{margin-bottom:1rem}
+.detail-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+
+/* USER ROWS */
+.user-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--gray-100)}
+.user-row:last-child{border-bottom:none}
+.user-row .uname{font-weight:600;color:var(--text);font-size:14px}
+.user-row .urole{font-size:12px;color:var(--text-muted);margin-top:2px}
+
+/* EMPTY */
+.empty{text-align:center;padding:3rem 1rem;color:var(--text-muted)}
+.empty .empty-icon{font-size:40px;margin-bottom:0.75rem}
+.empty p{font-size:14px}
+
+/* LOADING */
+.loading{text-align:center;padding:2rem;color:var(--text-muted);font-size:14px}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--navy);border-radius:50%;animation:spin 0.7s linear infinite;margin-right:8px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--navy);color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:500;z-index:9999;opacity:0;transition:all 0.25s;pointer-events:none;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:1rem}
+
+@media(max-width:480px){
+  .section{padding:0.75rem}
+  .card{padding:0.875rem 1rem}
+  .topbar-title{font-size:13px}
+  .metrics-grid{grid-template-columns:repeat(2,1fr)}
+  .form-grid{grid-template-columns:1fr 1fr}
+  .topbar-user{display:none}
+}
+@media(min-width:768px){
+  .overlay{align-items:center;padding:1rem}
+  .modal{border-radius:var(--radius-lg);max-height:85vh}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ SETUP SCREEN ══════════════ -->
+<div class="setup-screen" id="setupScreen">
+  <div class="setup-box">
+    <div class="setup-logo">
+      <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm-1 6h2v1.28A9.01 9.01 0 0 1 20.92 18H17.8a6.01 6.01 0 0 0-4.8-4.72V18h-2v-4.72A6.01 6.01 0 0 0 6.2 18H3.08A9.01 9.01 0 0 1 11 11.28V10z"/></svg>
+      <h1>KMT Estimator Setup</h1>
+      <p>Connect your Supabase database</p>
+    </div>
+    <div class="setup-note">
+      📋 <strong>One-time setup:</strong> Paste your Supabase Project URL and anon key below. These are found in your Supabase dashboard under <strong>Settings → API</strong>.
+    </div>
+    <div class="setup-err" id="setupErr"></div>
+    <div class="setup-field">
+      <label>Supabase Project URL</label>
+      <input type="text" id="sbUrl" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off" autocapitalize="none">
+    </div>
+    <div class="setup-field">
+      <label>Supabase Anon Key</label>
+      <input type="text" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." autocomplete="off" autocapitalize="none">
+    </div>
+    <button class="setup-btn" onclick="saveSupabaseConfig()">Connect & Continue</button>
+    <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-top:1rem">These credentials are stored only on this device in localStorage.</p>
+  </div>
+</div>
+
+<!-- ══════════════ LOGIN SCREEN ══════════════ -->
+<div class="login-screen" id="loginScreen" style="display:none">
+  <div class="login-box">
+    <div class="login-logo">
+      <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm-1 6h2v1.28A9.01 9.01 0 0 1 20.92 18H17.8a6.01 6.01 0 0 0-4.8-4.72V18h-2v-4.72A6.01 6.01 0 0 0 6.2 18H3.08A9.01 9.01 0 0 1 11 11.28V10z"/></svg>
+      <h1>KMT Estimator</h1>
+      <p>Kentmorr Marine Transport</p>
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <div class="login-field">
+      <label>Username</label>
+      <input type="text" id="loginUser" placeholder="Enter username" autocomplete="username" autocapitalize="none" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="Enter password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In</button>
+    <div class="login-attempts" id="loginAttempts"></div>
+    
+  </div>
+</div>
+
+<!-- ══════════════ MAIN APP ══════════════ -->
+<div class="app" id="mainApp" style="display:none">
+
+<div class="topbar">
+  <div class="topbar-logo">
+    <svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm-1 6h2v1.28A9.01 9.01 0 0 1 20.92 18H17.8a6.01 6.01 0 0 0-4.8-4.72V18h-2v-4.72A6.01 6.01 0 0 0 6.2 18H3.08A9.01 9.01 0 0 1 11 11.28V10z"/></svg>
+    <div class="topbar-title">KMT <span>Estimator</span></div>
+  </div>
+  <div class="topbar-actions">
+    <span class="topbar-user" id="topbarUser"></span>
+    <span title="Database sync status" style="display:flex;align-items:center;font-size:11px;color:rgba(255,255,255,0.6)"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">Live</span></span>
+    <button class="topbar-btn" onclick="exportCSV()">⬇ CSV</button>
+    <button class="topbar-btn accent" onclick="showTab('estimator');clearForm()">+ New</button>
+    <button class="topbar-btn" onclick="signOut()">⎋ Out</button>
+  </div>
+</div>
+
+<div class="tab-bar" id="mainTabBar">
+  <button class="tab-btn active" id="tab-estimator" onclick="showTab('estimator')">Estimate</button>
+  <button class="tab-btn" id="tab-bids" onclick="showTab('bids')">Saved Bids</button>
+  <button class="tab-btn" id="tab-rates" onclick="showTab('rates')">Rates</button>
+  <button class="tab-btn" id="tab-admin" onclick="showTab('admin')">Admin</button>
+</div>
+
+<!-- ══ ESTIMATOR ══ -->
+<div class="section active" id="section-estimator">
+  <div class="card">
+    <div class="card-title">Job Details</div>
+    <div class="form-grid">
+      <div class="field"><label>Bid Date</label><input type="date" id="bidDate"></div>
+      <div class="field"><label>Customer</label><input type="text" id="customer" placeholder="Customer name"></div>
+
+      <div class="field"><label>Boat Description</label><input type="text" id="boat" placeholder="e.g. 42 Markley"></div>
+      <div class="field"><label>Status</label>
+        <select id="status">
+          <option value="Estimate">Estimate</option><option value="Bid Sent">Bid Sent</option>
+          <option value="Accepted">Accepted</option><option value="Declined">Declined</option><option value="Completed">Completed</option>
+        </select>
+      </div>
+      <div class="field full"><label>Notes</label><input type="text" id="notes" placeholder="Optional notes"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Load Dimensions</div>
+    <div class="form-grid">
+      <div class="field"><label>LOA (ft)</label><input type="number" id="loa" placeholder="0" oninput="calculate()"></div>
+      <div class="field"><label>Beam (ft)</label><input type="number" step="0.1" id="beam" placeholder="0" oninput="calculate()"></div>
+      <div class="field"><label>Weight (lbs)</label><input type="number" id="weight" placeholder="0" oninput="calculate()"></div>
+      <div class="field"><label>Load Height (ft)</label><input type="number" step="0.1" id="height" placeholder="0" oninput="calculate()"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Route & Miles</div>
+    <div class="form-grid">
+      <div class="field full"><label>Pickup Location</label><input type="text" id="pickup" placeholder="e.g. Kentmorr Marina, MD"></div>
+      <div class="field full"><label>Drop Location</label><input type="text" id="drop" placeholder="e.g. Solomons, MD"></div>
+      <div class="field"><label>Trip Miles (loaded)</label><input type="number" step="0.1" id="tripMiles" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Deadhead Out (mi)</label><input type="number" step="0.1" id="deadheadOut" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Deadhead Back (mi)</label><input type="number" step="0.1" id="deadheadBack" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Overnight Stays</label><input type="number" id="overnights" value="0" oninput="calculate()"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Services, Tolls & Permits</div>
+    <div class="form-grid">
+      <div class="field full">
+        <label>Included Services</label>
+        <div class="checkbox-group" style="margin-top:4px">
+          <label class="chk-label"><input type="checkbox" id="chkLoad" checked onchange="calculate()"> Load ($<span id="lbl-load">125</span>)</label>
+          <label class="chk-label"><input type="checkbox" id="chkUnload" checked onchange="calculate()"> Unload ($<span id="lbl-unload">125</span>)</label>
+        </div>
+      </div>
+      <div class="field"><label>Tolls Outbound ($)</label><input type="number" step="0.01" id="tollsOut" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Tolls Return ($)</label><input type="number" step="0.01" id="tollsBack" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Special/OSOW Tolls ($)</label><input type="number" step="0.01" id="specialTolls" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Fuel & Trip Permits</label><input type="number" id="permitStates" value="0" min="0" oninput="calculate()"></div>
+      <div class="field"><label>Pilot Car Count</label><input type="number" id="pilotCount" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Pilot Car Miles</label><input type="number" id="pilotMiles" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Customer Trailer?</label>
+        <select id="customerTrailer" onchange="calculate()"><option value="N">No</option><option value="Y">Yes (20% discount)</option></select>
+      </div>
+      <div class="field"><label>Rate per Mile</label>
+        <select id="ratePerMile" onchange="calculate()">
+          <option value="3.25">$3.25 / mile</option><option value="3.5">$3.50 / mile</option>
+          <option value="3.75" selected>$3.75 / mile</option><option value="4.0">$4.00 / mile</option>
+          <option value="4.25">$4.25 / mile</option><option value="4.5">$4.50 / mile</option><option value="4.75">$4.75 / mile</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="card" id="osowCard">
+    <div class="card-title">OSOW Permits <span style="font-size:11px;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">— Oversize/Overweight State Permits</span></div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:0.75rem">Select states/provinces traveled. Rates are pulled from the Rates page and can be updated there.</div>
+    <div id="osowRows" style="display:flex;flex-direction:column;gap:8px;margin-bottom:0.75rem"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button class="btn sm" onclick="addOsowRow()">+ Add State</button>
+      <button class="btn sm danger" onclick="clearOsowRows()">Clear All</button>
+      <div style="margin-left:auto;font-size:14px;font-weight:600;color:var(--navy)">OSOW Total: <span id="osowTotal">$0.00</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Rate Comparison</div>
+    <div style="overflow-x:auto"><table class="rate-table"><thead><tr><th>Rate</th><th>Trip Price</th><th>Driver Pay</th><th>Est. Profit</th></tr></thead><tbody id="rateTableBody"></tbody></table></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Estimate Summary</div>
+    <div class="metrics-grid">
+      <div class="metric highlight"><div class="m-label">Trip Price</div><div class="m-value" id="res-tripPrice">$0</div></div>
+      <div class="metric"><div class="m-label">Fuel Cost</div><div class="m-value" id="res-fuel">$0</div></div>
+      <div class="metric"><div class="m-label">Driver Pay</div><div class="m-value" id="res-driver">$0</div></div>
+      <div class="metric"><div class="m-label">Tolls</div><div class="m-value" id="res-tolls">$0</div></div>
+      <div class="metric"><div class="m-label">Permits</div><div class="m-value" id="res-permits">$0</div></div>
+      <div class="metric"><div class="m-label">OSOW Permits</div><div class="m-value" id="res-osow">$0</div></div>
+      <div class="metric"><div class="m-label">Pilot Est.</div><div class="m-value" id="res-pilot">$0</div></div>
+      <div class="metric"><div class="m-label">Maint. Alloc</div><div class="m-value" id="res-maint">$0</div></div>
+      <div class="metric"><div class="m-label">Insurance</div><div class="m-value" id="res-ins">$0</div></div>
+      <div class="metric"><div class="m-label">Vehicle Alloc</div><div class="m-value" id="res-vehicle">$0</div></div>
+      <div class="metric"><div class="m-label">KM Alloc</div><div class="m-value" id="res-km">$0</div></div>
+      <div class="metric"><div class="m-label">SMS Alloc</div><div class="m-value" id="res-sms">$0</div></div>
+      <div class="metric highlight"><div class="m-label">Est. Profit</div><div class="m-value" id="res-profit">$0</div></div>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:4px" id="res-note"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn accent" id="saveBidBtn" onclick="saveBid()">💾 Save Bid</button>
+    <button class="btn" onclick="clearForm()">↺ Clear</button>
+  </div>
+  <div style="height:1rem"></div>
+</div>
+
+<!-- ══ BIDS ══ -->
+<div class="section" id="section-bids">
+  <div class="search-row">
+    <input type="text" id="searchInput" placeholder="Search customer, boat, location..." oninput="renderBids()">
+    <select id="filterStatus" onchange="renderBids()">
+      <option value="">All statuses</option>
+      <option>Estimate</option><option>Bid Sent</option><option>Accepted</option><option>Declined</option><option>Completed</option>
+    </select>
+  </div>
+  <div class="stats-row" id="bidsStats"></div>
+  <div class="bid-list" id="bidList"></div>
+  <div style="height:1rem"></div>
+</div>
+
+<!-- ══ RATES ══ -->
+<div class="section" id="section-rates">
+  <div class="card">
+    <div class="card-title">Fuel Settings</div>
+    <div class="form-grid">
+      <div class="field"><label>Avg Diesel Price ($/gal)</label><input type="number" step="0.01" id="r_dieselPrice" value="5.5" oninput="saveRates()"></div>
+      <div class="field"><label>Est MPG Loaded</label><input type="number" step="0.1" id="r_mpgLoaded" value="5.0" oninput="saveRates()"></div>
+      <div class="field"><label>Est MPG Empty</label><input type="number" step="0.1" id="r_mpgEmpty" value="8.0" oninput="saveRates()"></div>
+      <div class="field"><label>Fuel Surcharge Rate ($/mi)</label><input type="number" step="0.001" id="r_fuelSurchargeRate" value="1.375" oninput="saveRates()"></div>
+      <div class="field"><label>Surcharge Min Weight (lbs)</label><input type="number" id="r_fuelSurchargeWeight" value="20000" oninput="saveRates()"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Load / Service Fees</div>
+    <div class="form-grid">
+      <div class="field"><label>Load Fee ($)</label><input type="number" id="r_loadFee" value="125" oninput="saveRates()"></div>
+      <div class="field"><label>Unload Fee ($)</label><input type="number" id="r_unloadFee" value="125" oninput="saveRates()"></div>
+      <div class="field"><label>Overnight Fee ($)</label><input type="number" id="r_overnightFee" value="200" oninput="saveRates()"></div>
+      <div class="field"><label>Deadhead Rate ($/mi)</label><input type="number" step="0.01" id="r_deadheadRate" value="1.0" oninput="saveRates()"></div>
+      <div class="field"><label>Pilot Car Rate ($/mi)</label><input type="number" step="0.01" id="r_pilotRate" value="3.0" oninput="saveRates()"></div>
+      <div class="field"><label>Pilot Beam Threshold (ft)</label><input type="number" step="0.1" id="r_pilotBeamThreshold" value="12.5" oninput="saveRates()"></div>
+      <div class="field"><label>Customer Trailer Discount</label><input type="number" step="0.01" id="r_trailerDiscount" value="0.20" oninput="saveRates()"></div>
+      <div class="field"><label>Permit Fee per State ($)</label><input type="number" step="0.01" id="r_permitFee" value="45.00" oninput="saveRates()"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Cost Allocations (% of gross revenue)</div>
+    <div class="form-grid">
+      <div class="field"><label>Driver Pay (standard)</label><input type="number" step="0.01" id="r_driverPay" value="0.25" oninput="saveRates()"></div>
+      <div class="field"><label>Driver Pay (pilot haul)</label><input type="number" step="0.01" id="r_driverPayPilot" value="0.25" oninput="saveRates()"></div>
+      <div class="field"><label>Maintenance</label><input type="number" step="0.01" id="r_maint" value="0.15" oninput="saveRates()"></div>
+      <div class="field"><label>Insurance</label><input type="number" step="0.01" id="r_ins" value="0.16" oninput="saveRates()"></div>
+      <div class="field"><label>Truck Payment</label><input type="number" step="0.01" id="r_truck" value="0.09" oninput="saveRates()"></div>
+      <div class="field"><label>KM Loan</label><input type="number" step="0.01" id="r_km" value="0.15" oninput="saveRates()"></div>
+      <div class="field"><label>SMS Loan</label><input type="number" step="0.01" id="r_sms" value="0.05" oninput="saveRates()"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">OSOW Permit Rates by State / Province</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.75rem">Edit any rate and it saves automatically. These are used in the OSOW Permits section of the estimator.</p>
+    <div style="overflow-x:auto">
+      <table class="rate-table">
+        <thead><tr><th>State</th><th>Abbrev.</th><th>Rate ($)</th><th>State</th><th>Abbrev.</th><th>Rate ($)</th></tr></thead>
+        <tbody id="osowRateTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <p style="font-size:12px;color:var(--text-muted);padding:0 0 1rem">Rate changes sync to all devices automatically.</p>
+</div>
+
+<!-- ══ ADMIN ══ -->
+<div class="section" id="section-admin">
+  <!-- Analytics -->
+  <div class="card">
+    <div class="card-title">Login Analytics</div>
+    <div class="metrics-grid" id="analyticsMetrics"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+  </div>
+  <!-- Login history -->
+  <div class="card">
+    <div class="card-title">Login History</div>
+    <div style="display:flex;gap:8px;margin-bottom:0.75rem;flex-wrap:wrap;align-items:center">
+      <select id="filterLoginUser" onchange="renderLoginHistory()" style="padding:6px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+        <option value="">All users</option>
+      </select>
+      <button class="btn sm danger" onclick="if(confirm('Clear all login history?'))clearLoginHistory()">Clear History</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="rate-table">
+        <thead><tr><th>User</th><th>Date & Time</th><th>Device</th><th>Browser</th><th>Result</th></tr></thead>
+        <tbody id="loginHistoryBody"><tr><td colspan="5" class="loading"><span class="spinner"></span>Loading...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <!-- Users -->
+  <div class="card">
+    <div class="card-title">Users</div>
+    <div id="userList" style="margin-bottom:1rem"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+    <div style="border-top:1px solid var(--border);padding-top:1rem">
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:0.75rem">Add New User</div>
+      <div class="form-grid">
+        <div class="field"><label>Username</label><input type="text" id="newUsername" placeholder="e.g. alex" autocapitalize="none"></div>
+        <div class="field"><label>Display Name</label><input type="text" id="newDisplayName" placeholder="e.g. Alex Sweitzer"></div>
+        <div class="field"><label>Password</label><input type="password" id="newPassword" placeholder="Min 6 characters"></div>
+        <div class="field"><label>Role</label>
+          <select id="newRole"><option value="admin">Admin (full access)</option><option value="user" selected>User (estimates & bids only)</option></select>
+        </div>
+      </div>
+      <div class="btn-row"><button class="btn accent" onclick="addUser()">Add User</button></div>
+    </div>
+  </div>
+  <!-- Reset password -->
+  <div class="card">
+    <div class="card-title">Reset a User's Password</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:0.75rem">Set a new password for any user without knowing their current one.</p>
+    <div class="form-grid">
+      <div class="field"><label>Select User</label><select id="resetUser" style="-webkit-appearance:none"></select></div>
+      <div class="field"><label>New Password</label><input type="password" id="resetPassword" placeholder="Min 6 characters"></div>
+      <div class="field"><label>Confirm Password</label><input type="password" id="resetConfirm" placeholder="Confirm"></div>
+    </div>
+    <div class="btn-row"><button class="btn primary" onclick="adminResetPassword()">Reset Password</button></div>
+  </div>
+  <!-- Change own password -->
+  <div class="card">
+    <div class="card-title">Change Your Password</div>
+    <div class="form-grid">
+      <div class="field"><label>Current Password</label><input type="password" id="chgCurrent" placeholder="Current password"></div>
+      <div class="field"><label>New Password</label><input type="password" id="chgNew" placeholder="New password"></div>
+      <div class="field"><label>Confirm New Password</label><input type="password" id="chgConfirm" placeholder="Confirm"></div>
+    </div>
+    <div class="btn-row"><button class="btn primary" onclick="changePassword()">Update My Password</button></div>
+  </div>
+  <div style="height:1rem"></div>
+</div>
+
+</div><!-- /app -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// SUPABASE CONFIG
+// ══════════════════════════════════════════════
+const SB_CONFIG_KEY = 'kmt_sb_config_v1';
+let SB_URL = '', SB_KEY = '';
+
+function getConfig() {
+  try { const s = localStorage.getItem(SB_CONFIG_KEY); if (s) return JSON.parse(s); } catch(e) {}
+  return null;
+}
+function saveSupabaseConfig() {
+  const url = document.getElementById('sbUrl').value.trim().replace(/\/$/, '');
+  const key = document.getElementById('sbKey').value.trim();
+  const errEl = document.getElementById('setupErr');
+  errEl.classList.remove('show');
+  if (!url || !key) { errEl.textContent = 'Both fields are required.'; errEl.classList.add('show'); return; }
+  if (!url.startsWith('https://')) { errEl.textContent = 'URL must start with https://'; errEl.classList.add('show'); return; }
+  localStorage.setItem(SB_CONFIG_KEY, JSON.stringify({ url, key }));
+  SB_URL = url; SB_KEY = key;
+  document.getElementById('setupScreen').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  initDB();
+}
+function resetConfig() {
+  localStorage.removeItem(SB_CONFIG_KEY);
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('setupScreen').style.display = 'flex';
+}
+
+// ══════════════════════════════════════════════
+// SUPABASE API WRAPPER
+// ══════════════════════════════════════════════
+async function sb(path, method='GET', body=null) {
+  setSyncState('syncing');
+  try {
+    const opts = {
+      method,
+      headers: { 'apikey': SB_KEY, 'Authorization': 'Bearer ' + SB_KEY, 'Content-Type': 'application/json', 'Prefer': method === 'POST' ? 'return=representation' : '' }
+    };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(SB_URL + '/rest/v1/' + path, opts);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err);
+    }
+    setSyncState('ok');
+    const text = await res.text();
+    return text ? JSON.parse(text) : [];
+  } catch(e) {
+    setSyncState('error');
+    throw e;
+  }
+}
+
+function setSyncState(state) {
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  if (!dot) return;
+  dot.className = 'sync-dot' + (state === 'syncing' ? ' syncing' : state === 'error' ? ' error' : '');
+  lbl.textContent = state === 'syncing' ? 'Syncing' : state === 'error' ? 'Offline' : 'Live';
+}
+
+// ══════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════
+const SESSION_KEY = 'kmt_session_v2';
+let currentSession = null;
+let failedAttempts = 0, lockUntil = 0;
+
+async function hashPassword(pw) {
+  const enc = new TextEncoder();
+  const data = enc.encode(pw + 'kmt_salt_kentmorr_2024');
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function initDB() {
+  // Tables are created via SQL setup script — just verify connection
+  try {
+    await sb('kmt_users?select=id&limit=1');
+  } catch(e) {
+    // Tables may not exist yet — that's ok, user will run SQL setup
+  }
+}
+
+async function doLogin() {
+  const now = Date.now();
+  if (now < lockUntil) { document.getElementById('loginAttempts').textContent = 'Locked. Try again in ' + Math.ceil((lockUntil-now)/1000) + 's.'; return; }
+  const username = document.getElementById('loginUser').value.trim().toLowerCase();
+  const password = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+  errEl.classList.remove('show');
+  if (!username || !password) { errEl.textContent = 'Enter username and password.'; errEl.classList.add('show'); return; }
+  btn.textContent = 'Signing in...'; btn.disabled = true;
+  try {
+    const hash = await hashPassword(password);
+    const rows = await sb('kmt_users?username=eq.' + encodeURIComponent(username) + '&select=*');
+    const ua = navigator.userAgent;
+    let browser = /Edg\//.test(ua)?'Edge':/Chrome\//.test(ua)?'Chrome':/Firefox\//.test(ua)?'Firefox':(/Safari\//.test(ua)&&!/Chrome/.test(ua))?'Safari':'Other';
+    let device = /iPhone/.test(ua)?'iPhone':/iPad/.test(ua)?'iPad':/Android/.test(ua)?'Android':'Desktop';
+    const logEntry = { username, browser, device, success: false, attempted_at: new Date().toISOString() };
+    if (!rows.length || rows[0].password_hash !== hash) {
+      logEntry.success = false;
+      await sb('kmt_login_log', 'POST', logEntry).catch(()=>{});
+      failedAttempts++;
+      if (failedAttempts >= 5) { lockUntil = Date.now()+30000; document.getElementById('loginAttempts').textContent = 'Too many attempts. Locked 30s.'; setTimeout(()=>{failedAttempts=0;document.getElementById('loginAttempts').textContent='';},30000); }
+      else if (failedAttempts > 2) { document.getElementById('loginAttempts').textContent = (5-failedAttempts) + ' attempts left.'; }
+      errEl.textContent = 'Incorrect username or password.'; errEl.classList.add('show');
+      btn.textContent = 'Sign In'; btn.disabled = false;
+      return;
+    }
+    const user = rows[0];
+    logEntry.success = true;
+    await sb('kmt_login_log', 'POST', logEntry).catch(()=>{});
+    failedAttempts = 0;
+    currentSession = { id: user.id, username: user.username, role: user.role, displayName: user.display_name };
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(currentSession));
+    document.getElementById('loginScreen').style.display = 'none';
+    btn.textContent = 'Sign In'; btn.disabled = false;
+    bootApp();
+  } catch(e) {
+    errEl.textContent = 'Connection error. Check your Supabase config.'; errEl.classList.add('show');
+    btn.textContent = 'Sign In'; btn.disabled = false;
+  }
+}
+
+function signOut() {
+  if (!confirm('Sign out?')) return;
+  currentSession = null;
+  sessionStorage.removeItem(SESSION_KEY);
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+}
+
+function bootApp() {
+  const app = document.getElementById('mainApp');
+  app.style.display = 'flex';
+  app.style.flexDirection = 'column';
+  document.getElementById('topbarUser').textContent = currentSession.displayName || currentSession.username;
+  // Show/hide admin tab
+  const adminTab = document.getElementById('tab-admin');
+  adminTab.style.display = currentSession.role === 'admin' ? '' : 'none';
+  // Reset to estimator tab
+  showTab('estimator');
+  loadRatesFromDB();
+  loadBidsFromDB();
+}
+
+// ══════════════════════════════════════════════
+// RATES — stored in Supabase
+// ══════════════════════════════════════════════
+let rates = defaultRates();
+function defaultRates() {
+  return { dieselPrice:5.5,mpgLoaded:5.0,mpgEmpty:8.0,fuelSurchargeRate:1.375,fuelSurchargeWeight:20000,loadFee:125,unloadFee:125,overnightFee:200,deadheadRate:1.0,pilotRate:3.0,pilotBeamThreshold:12.5,trailerDiscount:0.20,permitFee:45.00,driverPay:0.25,driverPayPilot:0.25,maint:0.15,ins:0.16,truck:0.09,km:0.15,sms:0.05 };
+}
+async function loadRatesFromDB() {
+  try {
+    const rows = await sb('kmt_rates?select=*&limit=1');
+    if (rows.length) { rates = { ...defaultRates(), ...rows[0].data }; }
+  } catch(e) {}
+  applyRatesToUI();
+  calculate();
+}
+function applyRatesToUI() {
+  const r = rates;
+  const set = (id, v) => { const el = document.getElementById(id); if(el) el.value = v; };
+  set('r_dieselPrice',r.dieselPrice);set('r_mpgLoaded',r.mpgLoaded);set('r_mpgEmpty',r.mpgEmpty);
+  set('r_fuelSurchargeRate',r.fuelSurchargeRate);set('r_fuelSurchargeWeight',r.fuelSurchargeWeight);
+  set('r_loadFee',r.loadFee);set('r_unloadFee',r.unloadFee);set('r_overnightFee',r.overnightFee);
+  set('r_deadheadRate',r.deadheadRate);set('r_pilotRate',r.pilotRate);set('r_pilotBeamThreshold',r.pilotBeamThreshold);
+  set('r_trailerDiscount',r.trailerDiscount);set('r_permitFee',r.permitFee||45);set('r_driverPay',r.driverPay);set('r_driverPayPilot',r.driverPayPilot);
+  set('r_maint',r.maint);set('r_ins',r.ins);set('r_truck',r.truck);set('r_km',r.km);set('r_sms',r.sms);
+  const ll = document.getElementById('lbl-load'); if(ll) ll.textContent = r.loadFee;
+  const lu = document.getElementById('lbl-unload'); if(lu) lu.textContent = r.unloadFee;
+}
+let ratesSaveTimer = null;
+function saveRates() {
+  const f = id => parseFloat(document.getElementById(id).value) || 0;
+  rates = { dieselPrice:f('r_dieselPrice'),mpgLoaded:f('r_mpgLoaded'),mpgEmpty:f('r_mpgEmpty'),fuelSurchargeRate:f('r_fuelSurchargeRate'),fuelSurchargeWeight:f('r_fuelSurchargeWeight'),loadFee:f('r_loadFee'),unloadFee:f('r_unloadFee'),overnightFee:f('r_overnightFee'),deadheadRate:f('r_deadheadRate'),pilotRate:f('r_pilotRate'),pilotBeamThreshold:f('r_pilotBeamThreshold'),trailerDiscount:f('r_trailerDiscount'),permitFee:f('r_permitFee')||45,driverPay:f('r_driverPay'),driverPayPilot:f('r_driverPayPilot'),maint:f('r_maint'),ins:f('r_ins'),truck:f('r_truck'),km:f('r_km'),sms:f('r_sms') };
+  const ll = document.getElementById('lbl-load'); if(ll) ll.textContent = rates.loadFee;
+  const lu = document.getElementById('lbl-unload'); if(lu) lu.textContent = rates.unloadFee;
+  calculate();
+  clearTimeout(ratesSaveTimer);
+  ratesSaveTimer = setTimeout(async () => {
+    try {
+      const rows = await sb('kmt_rates?select=id&limit=1');
+      if (rows.length) { await sb('kmt_rates?id=eq.'+rows[0].id, 'PATCH', { data: rates }); }
+      else { await sb('kmt_rates', 'POST', { data: rates }); }
+      showToast('Rates saved ✓');
+    } catch(e) { showToast('Rate save failed — check connection'); }
+  }, 1200);
+}
+
+// ══════════════════════════════════════════════
+// CALCULATIONS
+// ══════════════════════════════════════════════
+function pf(id){return parseFloat(document.getElementById(id).value)||0}
+function pi(id){return parseInt(document.getElementById(id).value)||0}
+function fmt(n){return '$'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
+
+function computeEstimate(v) {
+  const r = rates;
+  const hasSurcharge = v.weight >= r.fuelSurchargeWeight;
+  const fuelSurcharge = hasSurcharge ? v.tripMiles * r.fuelSurchargeRate : 0;
+  let tripFee = v.tripMiles * v.ratePerMile;
+  if (v.customerTrailer === 'Y') tripFee *= (1 - r.trailerDiscount);
+  const loadFee = v.chkLoad ? r.loadFee : 0;
+  const unloadFee = v.chkUnload ? r.unloadFee : 0;
+  const overnight = v.overnights * r.overnightFee;
+  const deadheadFee = (v.deadheadOut + v.deadheadBack) > 0 ? (v.deadheadOut + v.deadheadBack) * r.deadheadRate : 0;
+  const pilotEst = v.pilotCount > 0 ? v.pilotCount * v.pilotMiles * r.pilotRate : 0;
+  const totalTolls = v.tollsOut + v.tollsBack + v.specialTolls;
+  const permitCost = (v.permitStates||0) * (r.permitFee||45);
+  const osowCost = v.osowCost||0;
+  const tripPrice = tripFee + loadFee + unloadFee + overnight + deadheadFee + fuelSurcharge + totalTolls + permitCost + osowCost + pilotEst;
+  const isPilotHaul = v.beam >= r.pilotBeamThreshold;
+  const driverRate = isPilotHaul ? r.driverPayPilot : r.driverPay;
+  const driverBase = tripPrice - totalTolls - permitCost - osowCost - overnight - pilotEst;
+  const driverPay = Math.max(0, driverBase * driverRate);
+  const maintAlloc = tripPrice * r.maint;
+  const insAlloc = tripPrice * r.ins;
+  const vehicleAlloc = tripPrice * r.truck;
+  const kmAlloc = tripPrice * r.km;
+  const smsAlloc = tripPrice * r.sms;
+  const gallons = v.tripMiles > 0 ? v.tripMiles / r.mpgLoaded : 0;
+  const fuelCost = gallons * r.dieselPrice;
+  const profit = tripPrice - fuelCost - driverPay - totalTolls - permitCost - osowCost - overnight - pilotEst - maintAlloc - insAlloc - vehicleAlloc - kmAlloc - smsAlloc;
+  return { tripPrice, fuelCost, driverPay, totalTolls, permits: permitCost, permitStates: v.permitStates||0, osowCost, pilotEst, maintAlloc, insAlloc, vehicleAlloc, kmAlloc, smsAlloc, profit, gallons, fuelSurcharge, overnight, isPilotHaul };
+}
+function getFormValues() {
+  const dOut=pf('deadheadOut'),dBack=pf('deadheadBack'); return { tripMiles:pf('tripMiles'),weight:pf('weight'),beam:pf('beam'),overnights:pi('overnights'),deadheadOut:dOut,deadheadBack:dBack,chkLoad:document.getElementById('chkLoad').checked,chkUnload:document.getElementById('chkUnload').checked,chkDeadhead:(dOut>0||dBack>0),tollsOut:pf('tollsOut'),tollsBack:pf('tollsBack'),specialTolls:pf('specialTolls'),permitStates:pi('permitStates'),osowCost:getOsowTotal(),osowSelections:getOsowSelections(),pilotCount:pi('pilotCount'),pilotMiles:pf('pilotMiles'),customerTrailer:document.getElementById('customerTrailer').value,ratePerMile:parseFloat(document.getElementById('ratePerMile').value)||3.75 };
+}
+function calculate() {
+  const v = getFormValues();
+  const e = computeEstimate(v);
+  const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+  set('res-tripPrice', fmt(e.tripPrice)); set('res-fuel', fmt(e.fuelCost)); set('res-driver', fmt(e.driverPay));
+  set('res-tolls', fmt(e.totalTolls)); set('res-permits', fmt(e.permits)); set('res-osow', fmt(e.osowCost||0)); set('res-pilot', fmt(e.pilotEst));
+  set('res-maint', fmt(e.maintAlloc)); set('res-ins', fmt(e.insAlloc)); set('res-vehicle', fmt(e.vehicleAlloc));
+  set('res-km', fmt(e.kmAlloc)); set('res-sms', fmt(e.smsAlloc));
+  const profEl = document.getElementById('res-profit');
+  if(profEl){ profEl.textContent = (e.profit<0?'-':'') + fmt(e.profit); profEl.className = 'm-value ' + (e.profit>=0?'pos':'neg'); }
+  const noteEl = document.getElementById('res-note');
+  if(noteEl){ let n=[]; if(v.weight>=rates.fuelSurchargeWeight)n.push('Fuel surcharge '+fmt(e.fuelSurcharge)); if(e.isPilotHaul)n.push('Pilot haul rate'); if(e.gallons>0)n.push(e.gallons.toFixed(1)+' gal @ $'+rates.dieselPrice+'/gal'); if(e.permitStates>0)n.push(e.permitStates+' states × $'+(rates.permitFee||45)+' = '+fmt(e.permits)); noteEl.textContent=n.join('  ·  '); }
+  const rates2 = [3.25,3.5,3.75,4.0,4.25,4.5,4.75];
+  const tbody = document.getElementById('rateTableBody');
+  if(tbody) tbody.innerHTML = rates2.map(rate => {
+    const est = computeEstimate({...v, ratePerMile:rate});
+    const sel = Math.abs(rate - v.ratePerMile) < 0.001 ? ' class="sel-row"' : '';
+    const pc = est.profit>=0?'color:var(--green)':'color:var(--red)';
+    return `<tr${sel}><td><strong>$${rate.toFixed(2)}/mi</strong></td><td>${fmt(est.tripPrice)}</td><td>${fmt(est.driverPay)}</td><td style="${pc}">${est.profit<0?'-':''}${fmt(est.profit)}</td></tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// BIDS — stored in Supabase
+// ══════════════════════════════════════════════
+let bids = [];
+async function loadBidsFromDB() {
+  try {
+    const rows = await sb('kmt_bids?select=*&order=created_at.desc');
+    bids = rows;
+    renderBids();
+  } catch(e) { showToast('Could not load bids'); }
+}
+
+async function saveBid() {
+  const v = getFormValues();
+  const e = computeEstimate(v);
+  const btn = document.getElementById('saveBidBtn');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  const editId = document.getElementById('section-estimator').dataset.editId;
+  const bidData = {
+    bid_date: document.getElementById('bidDate').value,
+    customer: document.getElementById('customer').value,
+    boat: document.getElementById('boat').value,
+    loa: document.getElementById('loa').value || null,
+    beam: document.getElementById('beam').value || null,
+    weight_lbs: document.getElementById('weight').value || null,
+    height_ft: document.getElementById('height').value || null,
+    pickup: document.getElementById('pickup').value,
+    drop_location: document.getElementById('drop').value,
+    notes: document.getElementById('notes').value,
+    status: document.getElementById('status').value,
+    trip_miles: v.tripMiles, deadhead_out: v.deadheadOut, deadhead_back: v.deadheadBack,
+    overnights: v.overnights, chk_load: v.chkLoad, chk_unload: v.chkUnload, chk_deadhead: v.chkDeadhead,
+    tolls_out: v.tollsOut, tolls_back: v.tollsBack, special_tolls: v.specialTolls,
+    permits: e.permits, permit_states: v.permitStates, osow_cost: e.osowCost||0, osow_selections: v.osowSelections||[], pilot_count: v.pilotCount, pilot_miles: v.pilotMiles,
+    customer_trailer: v.customerTrailer, rate_per_mile: v.ratePerMile,
+    trip_price: e.tripPrice, fuel_cost: e.fuelCost, driver_pay: e.driverPay,
+    total_tolls: e.totalTolls, pilot_est: e.pilotEst, maint_alloc: e.maintAlloc,
+    ins_alloc: e.insAlloc, vehicle_alloc: e.vehicleAlloc, km_alloc: e.kmAlloc,
+    sms_alloc: e.smsAlloc, profit: e.profit, created_by: currentSession.username
+  };
+  try {
+    if (editId) {
+      await sb('kmt_bids?id=eq.'+editId, 'PATCH', bidData);
+      delete document.getElementById('section-estimator').dataset.editId;
+      showToast('Bid updated ✓');
+    } else {
+      await sb('kmt_bids', 'POST', bidData);
+      showToast('Bid saved ✓');
+    }
+    await loadBidsFromDB();
+    showTab('bids');
+  } catch(e) { showToast('Save failed — check connection'); }
+  btn.textContent = '💾 Save Bid'; btn.disabled = false;
+}
+
+const statusBadgeClass = {Estimate:'gray','Bid Sent':'blue',Accepted:'green',Declined:'red',Completed:'navy'};
+
+function renderBids() {
+  const q = (document.getElementById('searchInput').value||'').toLowerCase();
+  const sf = document.getElementById('filterStatus').value;
+  const filtered = bids.filter(b => {
+    const txt = [b.customer,b.boat,b.pickup,b.drop_location,b.driver,b.notes].join(' ').toLowerCase();
+    return (!q || txt.includes(q)) && (!sf || b.status === sf);
+  });
+  const statsEl = document.getElementById('bidsStats');
+  if (filtered.length) {
+    const rev = filtered.reduce((s,b)=>s+(b.trip_price||0),0);
+    const prof = filtered.reduce((s,b)=>s+(b.profit||0),0);
+    statsEl.innerHTML = `<div class="metric"><div class="m-label">Bids</div><div class="m-value">${filtered.length}</div></div><div class="metric"><div class="m-label">Revenue</div><div class="m-value">${fmt(rev)}</div></div><div class="metric"><div class="m-label">Profit</div><div class="m-value ${prof>=0?'pos':'neg'}">${prof<0?'-':''}${fmt(Math.abs(prof))}</div></div>`;
+  } else statsEl.innerHTML='';
+  const listEl = document.getElementById('bidList');
+  if (!filtered.length) { listEl.innerHTML = `<div class="empty"><div class="empty-icon">📋</div><p>${bids.length?'No bids match your search.':'No bids yet. Create an estimate and tap Save Bid.'}</p></div>`; return; }
+  listEl.innerHTML = filtered.map(b => {
+    const bc = statusBadgeClass[b.status]||'gray';
+    return `<div class="bid-card" onclick="viewBid('${b.id}')">
+      <div class="bid-card-top">
+        <div style="flex:1;min-width:0">
+          <div class="bid-card-name">${b.customer||'Unnamed'}</div>
+          <div class="bid-card-sub">${b.boat||'—'} · ${b.pickup||'?'} → ${b.drop_location||'?'}</div>
+          <div class="bid-card-sub" style="margin-top:1px">${b.trip_miles||0} mi · ${b.bid_date||'No date'}</div>
+        </div>
+        <div style="flex-shrink:0;margin-left:12px;text-align:right">
+          <div class="bid-card-price">${fmt(b.trip_price||0)}</div>
+          <div class="bid-card-profit" style="color:${(b.profit||0)>=0?'var(--green)':'var(--red)'}">${(b.profit||0)<0?'−':'+'}${fmt(Math.abs(b.profit||0))}</div>
+        </div>
+      </div>
+      <div class="bid-card-meta"><span class="badge ${bc}">${b.status}</span>${b.notes?`<span style="font-size:12px;color:var(--text-muted)">${b.notes}</span>`:''}</div>
+    </div>`;
+  }).join('');
+}
+
+function viewBid(id) {
+  const b = bids.find(x=>x.id==id);
+  if(!b) return;
+  const bc = statusBadgeClass[b.status]||'gray';
+  const profCls = (b.profit||0)>=0?'var(--green)':'var(--red)';
+  const ov = document.createElement('div');
+  ov.className='overlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove()};
+  ov.innerHTML=`<div class="modal">
+    <div class="modal-header">
+      <div><div class="modal-title">${b.customer||'Unnamed'}</div><div style="font-size:13px;color:var(--text-muted);margin-top:2px">${b.boat||'—'} · ${b.bid_date||''}</div></div>
+      <button class="modal-close" onclick="this.closest('.overlay').remove()">✕</button>
+    </div>
+    <span class="badge ${bc}" style="margin-bottom:0.875rem;display:inline-block">${b.status}</span>
+    <div class="detail-section"><div class="detail-section-title">Route</div>
+      <div class="detail-row"><span class="dl">Pickup</span><span class="dv">${b.pickup||'—'}</span></div>
+      <div class="detail-row"><span class="dl">Drop</span><span class="dv">${b.drop_location||'—'}</span></div>
+      <div class="detail-row"><span class="dl">Trip Miles</span><span class="dv">${b.trip_miles||0} mi</span></div>
+      <div class="detail-row"><span class="dl">Deadhead Out / Back</span><span class="dv">${b.deadhead_out||0} / ${b.deadhead_back||0} mi</span></div>
+    </div>
+    <div class="detail-section"><div class="detail-section-title">Load</div>
+      <div class="detail-row"><span class="dl">LOA / Beam / Weight</span><span class="dv">${b.loa||'—'} ft / ${b.beam||'—'} ft / ${b.weight_lbs||'—'} lbs</span></div>
+      <div class="detail-row"><span class="dl">Rate</span><span class="dv">$${b.rate_per_mile||'—'}/mi</span></div>
+    </div>
+    <div class="detail-section"><div class="detail-section-title">Financials</div>
+      <div class="detail-row"><span class="dl">Trip Price</span><span class="dv">${fmt(b.trip_price||0)}</span></div>
+      <div class="detail-row"><span class="dl">Fuel Cost</span><span class="dv">${fmt(b.fuel_cost||0)}</span></div>
+      <div class="detail-row"><span class="dl">Driver Pay</span><span class="dv">${fmt(b.driver_pay||0)}</span></div>
+      <div class="detail-row"><span class="dl">Tolls</span><span class="dv">${fmt(b.total_tolls||0)}</span></div>
+      <div class="detail-row"><span class="dl">Fuel &amp; Trip Permits</span><span class="dv">${fmt(b.permits||0)}${b.permit_states?' ('+b.permit_states+' states)':''}</span></div>
+      <div class="detail-row"><span class="dl">OSOW Permits</span><span class="dv">${fmt(b.osow_cost||0)}${b.osow_selections&&b.osow_selections.length?' ('+b.osow_selections.join(', ')+')':''}</span></div>
+      <div class="detail-row"><span class="dl">Pilot Est.</span><span class="dv">${fmt(b.pilot_est||0)}</span></div>
+      <div class="detail-row"><span class="dl">Maint / Ins / Vehicle</span><span class="dv">${fmt(b.maint_alloc||0)} / ${fmt(b.ins_alloc||0)} / ${fmt(b.vehicle_alloc||0)}</span></div>
+      <div class="detail-row"><span class="dl">KM / SMS Alloc</span><span class="dv">${fmt(b.km_alloc||0)} / ${fmt(b.sms_alloc||0)}</span></div>
+      <div class="detail-row"><span class="dl" style="font-weight:600">Est. Profit</span><span class="dv" style="color:${profCls}">${(b.profit||0)<0?'−':'+'}${fmt(Math.abs(b.profit||0))}</span></div>
+    </div>
+    ${b.notes?`<div style="font-size:13px;color:var(--text-muted);margin-bottom:0.875rem;padding:8px 10px;background:var(--gray-50);border-radius:var(--radius)">📝 ${b.notes}</div>`:''}
+    <div class="detail-section"><div class="detail-section-title">Update Status</div>
+      <select id="statusUpd_${b.id}" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:14px;background:white;-webkit-appearance:none;margin-bottom:0.75rem">
+        ${['Estimate','Bid Sent','Accepted','Declined','Completed'].map(s=>`<option${b.status===s?' selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" onclick="updateBidStatus('${b.id}');this.closest('.overlay').remove()">Save Status</button>
+      <button class="btn" onclick="editBid('${b.id}');this.closest('.overlay').remove()">✏️ Edit</button>
+      <button class="btn danger" onclick="if(confirm('Delete this bid?')){deleteBid('${b.id}');this.closest('.overlay').remove()}">🗑 Delete</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+async function updateBidStatus(id) {
+  const sel = document.getElementById('statusUpd_'+id);
+  if(!sel) return;
+  try {
+    await sb('kmt_bids?id=eq.'+id, 'PATCH', { status: sel.value });
+    await loadBidsFromDB();
+    showToast('Status updated ✓');
+  } catch(e) { showToast('Update failed'); }
+}
+
+function editBid(id) {
+  const b = bids.find(x=>x.id==id);
+  if(!b) return;
+  const sv = (i,v)=>{const el=document.getElementById(i);if(el)el.value=v||''};
+  sv('bidDate',b.bid_date);sv('customer',b.customer);sv('boat',b.boat);
+  sv('loa',b.loa);sv('beam',b.beam);sv('weight',b.weight_lbs);sv('height',b.height_ft);
+  sv('pickup',b.pickup);sv('drop',b.drop_location);sv('notes',b.notes);sv('status',b.status);
+  sv('tripMiles',b.trip_miles||0);sv('deadheadOut',b.deadhead_out||0);sv('deadheadBack',b.deadhead_back||0);
+  sv('overnights',b.overnights||0);sv('tollsOut',b.tolls_out||0);sv('tollsBack',b.tolls_back||0);
+  sv('specialTolls',b.special_tolls||0);sv('permitStates',b.permit_states||0);sv('pilotCount',b.pilot_count||0);sv('pilotMiles',b.pilot_miles||0);
+  document.getElementById('chkLoad').checked=b.chk_load!==false;
+  document.getElementById('chkUnload').checked=b.chk_unload!==false;
+  restoreOsowRows(b.osow_selections||[]);
+  sv('customerTrailer',b.customer_trailer||'N');sv('ratePerMile',b.rate_per_mile||3.75);
+  document.getElementById('section-estimator').dataset.editId=id;
+  calculate();showTab('estimator');showToast('Editing — tap Save Bid when done');
+}
+
+async function deleteBid(id) {
+  try {
+    await sb('kmt_bids?id=eq.'+id, 'DELETE');
+    await loadBidsFromDB();
+    showToast('Bid deleted');
+  } catch(e) { showToast('Delete failed'); }
+}
+
+function clearForm() {
+  delete document.getElementById('section-estimator').dataset.editId;
+  ['customer','boat','loa','beam','weight','height','pickup','drop','notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  ['tripMiles','deadheadOut','deadheadBack','overnights','tollsOut','tollsBack','specialTolls','permitStates','pilotCount','pilotMiles'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=0});
+  document.getElementById('chkLoad').checked=true;document.getElementById('chkUnload').checked=true;
+  clearOsowRows();
+  document.getElementById('customerTrailer').value='N';document.getElementById('ratePerMile').value='3.75';
+  document.getElementById('status').value='Estimate';
+  document.getElementById('bidDate').value=new Date().toISOString().slice(0,10);
+  calculate();
+}
+
+function exportCSV() {
+  if(!bids.length){showToast('No bids to export');return}
+  const hdr=['Date','Customer','Driver','Boat','Pickup','Drop','Miles','Rate','Trip Price','Fuel','Driver Pay','Tolls','Permits','Pilot','Maint','Ins','Vehicle','KM','SMS','Profit','Status','Notes'];
+  const rows=bids.map(b=>[b.bid_date,b.customer,b.driver,b.boat,b.pickup,b.drop_location,b.trip_miles,b.rate_per_mile,(b.trip_price||0).toFixed(2),(b.fuel_cost||0).toFixed(2),(b.driver_pay||0).toFixed(2),(b.total_tolls||0).toFixed(2),(b.permits||0).toFixed(2),(b.pilot_est||0).toFixed(2),(b.maint_alloc||0).toFixed(2),(b.ins_alloc||0).toFixed(2),(b.vehicle_alloc||0).toFixed(2),(b.km_alloc||0).toFixed(2),(b.sms_alloc||0).toFixed(2),(b.profit||0).toFixed(2),b.status,b.notes||''].map(v=>`"${v}"`).join(','));
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent([hdr.join(','),...rows].join('\n'));a.download='KMT_Bids_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+  showToast('CSV exported ✓');
+}
+
+// ══════════════════════════════════════════════
+// ADMIN — Users & Analytics (all from Supabase)
+// ══════════════════════════════════════════════
+async function loadAdminData() {
+  await Promise.all([renderAnalytics(), renderLoginHistory(), renderUserList()]);
+}
+
+async function renderAnalytics() {
+  const el = document.getElementById('analyticsMetrics');
+  if(!el) return;
+  try {
+    const [log, users] = await Promise.all([
+      sb('kmt_login_log?select=*&order=attempted_at.desc&limit=500'),
+      sb('kmt_users?select=*')
+    ]);
+    const successful = log.filter(l=>l.success).length;
+    const failed = log.filter(l=>!l.success).length;
+    const cutoff = new Date(Date.now()-86400000).toISOString();
+    const last24 = log.filter(l=>l.attempted_at>cutoff).length;
+    // Most recent login per user
+    const lastLogins = {};
+    log.filter(l=>l.success).forEach(l=>{if(!lastLogins[l.username])lastLogins[l.username]=l.attempted_at});
+    el.innerHTML=`
+      <div class="metric"><div class="m-label">Total Logins</div><div class="m-value">${successful}</div></div>
+      <div class="metric"><div class="m-label">Failed Attempts</div><div class="m-value" style="${failed>0?'color:var(--red)':''}">${failed}</div></div>
+      <div class="metric"><div class="m-label">Last 24 Hours</div><div class="m-value">${last24}</div></div>
+      <div class="metric"><div class="m-label">Total Users</div><div class="m-value">${users.length}</div></div>
+    `;
+  } catch(e) { el.innerHTML='<p style="color:var(--red);font-size:13px">Could not load analytics.</p>'; }
+}
+
+async function renderLoginHistory() {
+  const tbody = document.getElementById('loginHistoryBody');
+  const filterEl = document.getElementById('filterLoginUser');
+  if(!tbody) return;
+  tbody.innerHTML='<tr><td colspan="5" class="loading"><span class="spinner"></span>Loading...</td></tr>';
+  try {
+    const filterUser = filterEl ? filterEl.value : '';
+    let path = 'kmt_login_log?select=*&order=attempted_at.desc&limit=200';
+    if(filterUser) path += '&username=eq.'+encodeURIComponent(filterUser);
+    const [log, users] = await Promise.all([sb(path), sb('kmt_users?select=username,display_name')]);
+    // Populate filter dropdown
+    if(filterEl) {
+      const cur=filterEl.value;
+      filterEl.innerHTML='<option value="">All users</option>'+users.map(u=>`<option value="${u.username}"${u.username===cur?' selected':''}>${u.display_name||u.username}</option>`).join('');
+    }
+    // Populate reset user dropdown
+    const resetEl=document.getElementById('resetUser');
+    if(resetEl) resetEl.innerHTML=users.map(u=>`<option value="${u.username}">${u.display_name||u.username} (@${u.username})</option>`).join('');
+    if(!log.length){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.5rem">No login history yet.</td></tr>';return}
+    tbody.innerHTML=log.map(l=>{
+      const dt=new Date(l.attempted_at);
+      const ds=dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+      const ts=dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+      const badge=l.success?'<span class="badge green">✓ Success</span>':'<span class="badge red">✗ Failed</span>';
+      return`<tr><td><strong>${l.username}</strong></td><td>${ds} ${ts}</td><td>${l.device||'—'}</td><td>${l.browser||'—'}</td><td>${badge}</td></tr>`;
+    }).join('');
+  } catch(e) { tbody.innerHTML='<tr><td colspan="5" style="color:var(--red);padding:1rem;font-size:13px">Could not load history.</td></tr>'; }
+}
+
+async function clearLoginHistory() {
+  try {
+    await sb('kmt_login_log', 'DELETE');
+    renderLoginHistory(); renderAnalytics();
+    showToast('Login history cleared');
+  } catch(e) { showToast('Failed to clear history'); }
+}
+
+async function renderUserList() {
+  const listEl = document.getElementById('userList');
+  if(!listEl) return;
+  try {
+    const [users, log] = await Promise.all([sb('kmt_users?select=*&order=created_at.asc'), sb('kmt_login_log?select=username,attempted_at&success=eq.true&order=attempted_at.desc&limit=500')]);
+    const lastLogins={};
+    log.forEach(l=>{if(!lastLogins[l.username])lastLogins[l.username]=l.attempted_at});
+    listEl.innerHTML = users.map(u => {
+      const ll=lastLogins[u.username];
+      const lls=ll?new Date(ll).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}):'Never';
+      const isYou=u.username===currentSession.username;
+      return`<div class="user-row">
+        <div style="flex:1">
+          <div class="uname">${u.display_name||u.username} <span style="font-weight:400;color:var(--text-muted)">(@${u.username})</span></div>
+          <div class="urole">${u.role==='admin'?'🔑 Admin':'👤 User'} &nbsp;·&nbsp; Last login: ${lls}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          ${isYou?'<span style="font-size:11px;color:var(--text-muted);padding:5px 4px">You</span>':`<button class="btn danger sm" onclick="deleteUser('${u.username}')">Remove</button>`}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { listEl.innerHTML='<p style="color:var(--red);font-size:13px">Could not load users.</p>'; }
+}
+
+async function addUser() {
+  const username=document.getElementById('newUsername').value.trim().toLowerCase();
+  const displayName=document.getElementById('newDisplayName').value.trim();
+  const password=document.getElementById('newPassword').value;
+  const role=document.getElementById('newRole').value;
+  if(!username||!password){showToast('Username and password required');return}
+  if(password.length<6){showToast('Password must be at least 6 characters');return}
+  if(!/^[a-z0-9_]+$/.test(username)){showToast('Username: letters, numbers, underscores only');return}
+  const hash=await hashPassword(password);
+  try {
+    await sb('kmt_users','POST',{username,password_hash:hash,role,display_name:displayName||username});
+    document.getElementById('newUsername').value='';document.getElementById('newDisplayName').value='';document.getElementById('newPassword').value='';
+    await renderUserList();
+    showToast('User added ✓');
+  } catch(e) { showToast('Failed — username may already exist'); }
+}
+
+async function deleteUser(username) {
+  if(!confirm('Remove user "'+username+'"?')) return;
+  try {
+    await sb('kmt_users?username=eq.'+encodeURIComponent(username),'DELETE');
+    await renderUserList();
+    showToast('User removed');
+  } catch(e) { showToast('Delete failed'); }
+}
+
+async function adminResetPassword() {
+  const username=document.getElementById('resetUser').value;
+  const np=document.getElementById('resetPassword').value;
+  const nc=document.getElementById('resetConfirm').value;
+  if(!username){showToast('Select a user');return}
+  if(!np||!nc){showToast('Enter and confirm password');return}
+  if(np!==nc){showToast('Passwords do not match');return}
+  if(np.length<6){showToast('Minimum 6 characters');return}
+  const hash=await hashPassword(np);
+  try {
+    await sb('kmt_users?username=eq.'+encodeURIComponent(username),'PATCH',{password_hash:hash});
+    document.getElementById('resetPassword').value='';document.getElementById('resetConfirm').value='';
+    showToast('Password reset for '+username+' ✓');
+  } catch(e) { showToast('Reset failed'); }
+}
+
+async function changePassword() {
+  const current=document.getElementById('chgCurrent').value;
+  const np=document.getElementById('chgNew').value;
+  const nc=document.getElementById('chgConfirm').value;
+  if(!current||!np||!nc){showToast('All fields required');return}
+  if(np!==nc){showToast('New passwords do not match');return}
+  if(np.length<6){showToast('Minimum 6 characters');return}
+  try {
+    const rows=await sb('kmt_users?username=eq.'+encodeURIComponent(currentSession.username)+'&select=password_hash');
+    const curHash=await hashPassword(current);
+    if(!rows.length||rows[0].password_hash!==curHash){showToast('Current password is incorrect');return}
+    const newHash=await hashPassword(np);
+    await sb('kmt_users?username=eq.'+encodeURIComponent(currentSession.username),'PATCH',{password_hash:newHash});
+    document.getElementById('chgCurrent').value='';document.getElementById('chgNew').value='';document.getElementById('chgConfirm').value='';
+    showToast('Password changed ✓');
+  } catch(e) { showToast('Change failed'); }
+}
+
+
+// ══════════════════════════════════════════════
+// OSOW PERMIT DATA & LOGIC
+// ══════════════════════════════════════════════
+const OSOW_STATES = [
+  {name:'Alabama',abbr:'AL',fee:24.00},
+  {name:'Arizona',abbr:'AZ',fee:15.00},
+  {name:'Arkansas',abbr:'AR',fee:28.00},
+  {name:'California',abbr:'CA',fee:16.00},
+  {name:'Colorado',abbr:'CO',fee:15.00},
+  {name:'Connecticut',abbr:'CT',fee:42.00},
+  {name:'Delaware',abbr:'DE',fee:30.00},
+  {name:'Florida',abbr:'FL',fee:25.00},
+  {name:'Georgia',abbr:'GA',fee:38.00},
+  {name:'Idaho',abbr:'ID',fee:33.00},
+  {name:'Illinois',abbr:'IL',fee:40.00},
+  {name:'Indiana',abbr:'IN',fee:30.00},
+  {name:'Iowa',abbr:'IA',fee:40.00},
+  {name:'Kansas',abbr:'KS',fee:20.00},
+  {name:'Kentucky',abbr:'KY',fee:60.00},
+  {name:'Louisiana',abbr:'LA',fee:20.00},
+  {name:'Maine',abbr:'ME',fee:30.00},
+  {name:'Maryland',abbr:'MD',fee:59.16},
+  {name:'Massachusetts',abbr:'MA',fee:90.00},
+  {name:'Michigan',abbr:'MI',fee:17.00},
+  {name:'Minnesota',abbr:'MN',fee:15.00},
+  {name:'Mississippi',abbr:'MS',fee:18.00},
+  {name:'Missouri',abbr:'MO',fee:15.00},
+  {name:'Montana',abbr:'MT',fee:10.00},
+  {name:'Nebraska',abbr:'NE',fee:15.00},
+  {name:'Nevada',abbr:'NV',fee:30.00},
+  {name:'New Hampshire',abbr:'NH',fee:10.00},
+  {name:'New Jersey',abbr:'NJ',fee:23.10},
+  {name:'New Mexico',abbr:'NM',fee:15.00},
+  {name:'New York',abbr:'NY',fee:82.00},
+  {name:'New York City',abbr:'NYC',fee:50.00},
+  {name:'North Carolina',abbr:'NC',fee:45.00},
+  {name:'North Dakota',abbr:'ND',fee:30.00},
+  {name:'Ohio',abbr:'OH',fee:81.00},
+  {name:'Oklahoma',abbr:'OK',fee:12.00},
+  {name:'Oregon',abbr:'OR',fee:20.00},
+  {name:'Pennsylvania',abbr:'PA',fee:150.00},
+  {name:'Rhode Island',abbr:'RI',fee:68.75},
+  {name:'South Carolina',abbr:'SC',fee:33.75},
+  {name:'South Dakota',abbr:'SD',fee:30.00},
+  {name:'Tennessee',abbr:'TN',fee:61.37},
+  {name:'Texas',abbr:'TX',fee:122.96},
+  {name:'Utah',abbr:'UT',fee:35.00},
+  {name:'Vermont',abbr:'VT',fee:0.00},
+  {name:'Virginia',abbr:'VA',fee:35.00},
+  {name:'Virginia Beach',abbr:'VAB',fee:75.00},
+  {name:'Washington',abbr:'WA',fee:10.00},
+  {name:'West Virginia',abbr:'WV',fee:24.16},
+  {name:'Wisconsin',abbr:'WI',fee:25.00},
+  {name:'Wyoming',abbr:'WY',fee:25.00},
+  {name:'Ontario, Canada',abbr:'ON-CA',fee:65.00},
+  {name:'Quebec, Canada',abbr:'QC-CA',fee:122.70},
+  {name:'Alberta, Canada',abbr:'AB-CA',fee:0.00},
+  {name:'British Columbia',abbr:'BC-CA',fee:0.00},
+  {name:'Manitoba',abbr:'MB-CA',fee:0.00},
+  {name:'New Brunswick',abbr:'NB-CA',fee:0.00},
+  {name:'Newfoundland',abbr:'NL-CA',fee:0.00},
+  {name:'Nova Scotia',abbr:'NS-CA',fee:0.00},
+  {name:'Prince Edward Island',abbr:'PE-CA',fee:0.00},
+  {name:'Saskatchewan',abbr:'SK-CA',fee:0.00},
+];
+
+// Get current OSOW fee for a given abbr (checks rates overrides first, falls back to default)
+function getOsowFee(abbr) {
+  const override = rates.osowOverrides && rates.osowOverrides[abbr];
+  if (override !== undefined) return override;
+  const state = OSOW_STATES.find(s => s.abbr === abbr);
+  return state ? state.fee : 0;
+}
+
+// Build the state options HTML once
+function buildOsowOptions(selectedAbbr) {
+  return '<option value="">— Select State —</option>' +
+    OSOW_STATES.map(s => {
+      const fee = getOsowFee(s.abbr);
+      return `<option value="${s.abbr}" ${s.abbr === selectedAbbr ? 'selected' : ''}>${s.abbr} — ${s.name} ($${fee.toFixed(2)})</option>`;
+    }).join('');
+}
+
+let osowRowCount = 0;
+
+function addOsowRow(selectedAbbr) {
+  osowRowCount++;
+  const rowId = 'osowRow_' + osowRowCount;
+  const div = document.createElement('div');
+  div.id = rowId;
+  div.style.cssText = 'display:flex;gap:8px;align-items:center';
+  div.innerHTML = `
+    <span style="font-size:12px;color:var(--text-muted);min-width:18px;text-align:right">${document.getElementById('osowRows').children.length + 1}</span>
+    <select style="flex:1;padding:7px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none" onchange="updateOsowRow('${rowId}', this.value)">
+      ${buildOsowOptions(selectedAbbr||'')}
+    </select>
+    <span id="${rowId}_cost" style="font-size:13px;font-weight:600;min-width:60px;text-align:right;color:var(--navy)">$0.00</span>
+    <button class="btn sm danger" onclick="removeOsowRow('${rowId}')" style="flex-shrink:0">✕</button>
+  `;
+  document.getElementById('osowRows').appendChild(div);
+  if (selectedAbbr) updateOsowRow(rowId, selectedAbbr);
+  else updateOsowTotal();
+}
+
+function updateOsowRow(rowId, abbr) {
+  const costEl = document.getElementById(rowId + '_cost');
+  if (!costEl) return;
+  const fee = abbr ? getOsowFee(abbr) : 0;
+  costEl.textContent = '$' + fee.toFixed(2);
+  updateOsowTotal();
+  calculate();
+}
+
+function removeOsowRow(rowId) {
+  const el = document.getElementById(rowId);
+  if (el) el.remove();
+  // Renumber
+  document.getElementById('osowRows').querySelectorAll('div[id^="osowRow_"]').forEach((row, i) => {
+    const numEl = row.querySelector('span');
+    if (numEl) numEl.textContent = i + 1;
+  });
+  updateOsowTotal();
+  calculate();
+}
+
+function clearOsowRows() {
+  document.getElementById('osowRows').innerHTML = '';
+  osowRowCount = 0;
+  updateOsowTotal();
+  calculate();
+}
+
+function getOsowTotal() {
+  let total = 0;
+  document.getElementById('osowRows').querySelectorAll('select').forEach(sel => {
+    if (sel.value) total += getOsowFee(sel.value);
+  });
+  return total;
+}
+
+function getOsowSelections() {
+  const selections = [];
+  document.getElementById('osowRows').querySelectorAll('select').forEach(sel => {
+    if (sel.value) selections.push(sel.value);
+  });
+  return selections;
+}
+
+function updateOsowTotal() {
+  const total = getOsowTotal();
+  const el = document.getElementById('osowTotal');
+  if (el) el.textContent = '$' + total.toFixed(2);
+}
+
+function renderOsowRateTable() {
+  const tbody = document.getElementById('osowRateTableBody');
+  if (!tbody) return;
+  // Render 2 columns per row
+  const rows = [];
+  for (let i = 0; i < OSOW_STATES.length; i += 2) {
+    const a = OSOW_STATES[i], b = OSOW_STATES[i+1];
+    const feeA = getOsowFee(a.abbr);
+    const feeB = b ? getOsowFee(b.abbr) : null;
+    rows.push(`<tr>
+      <td>${a.name}</td>
+      <td><strong>${a.abbr}</strong></td>
+      <td><input type="number" step="0.01" value="${feeA.toFixed(2)}" style="width:80px;padding:4px 6px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px" onchange="updateOsowRate('${a.abbr}', this.value)"></td>
+      ${b ? `<td>${b.name}</td><td><strong>${b.abbr}</strong></td><td><input type="number" step="0.01" value="${feeB.toFixed(2)}" style="width:80px;padding:4px 6px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px" onchange="updateOsowRate('${b.abbr}', this.value)"></td>` : '<td></td><td></td><td></td>'}
+    </tr>`);
+  }
+  tbody.innerHTML = rows.join('');
+}
+
+function updateOsowRate(abbr, newFee) {
+  const fee = parseFloat(newFee) || 0;
+  if (!rates.osowOverrides) rates.osowOverrides = {};
+  rates.osowOverrides[abbr] = fee;
+  // Debounced save
+  clearTimeout(ratesSaveTimer);
+  ratesSaveTimer = setTimeout(async () => {
+    try {
+      const rows = await sb('kmt_rates?select=id&limit=1');
+      if (rows.length) { await sb('kmt_rates?id=eq.'+rows[0].id, 'PATCH', { data: rates }); }
+      else { await sb('kmt_rates', 'POST', { data: rates }); }
+      showToast('OSOW rates saved ✓');
+    } catch(e) { showToast('Save failed'); }
+  }, 1200);
+  // Update OSOW dropdowns to reflect new fee
+  document.querySelectorAll('#osowRows select').forEach(sel => {
+    if (sel.value === abbr) {
+      const costEl = sel.closest('div').querySelector('span[id$="_cost"]');
+      if (costEl) costEl.textContent = '$' + fee.toFixed(2);
+    }
+    // Rebuild options for this select to show updated fee
+    const cur = sel.value;
+    sel.innerHTML = buildOsowOptions(cur);
+  });
+  updateOsowTotal();
+  calculate();
+}
+
+// Restore OSOW rows when editing a bid
+function restoreOsowRows(selections) {
+  clearOsowRows();
+  if (selections && selections.length) {
+    selections.forEach(abbr => addOsowRow(abbr));
+  }
+}
+
+// ══════════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════════
+function showTab(name) {
+  const app=document.getElementById('mainApp');
+  app.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
+  app.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  const t=document.getElementById('tab-'+name);const s=document.getElementById('section-'+name);
+  if(t)t.classList.add('active');if(s)s.classList.add('active');
+  if(name==='bids')renderBids();
+  if(name==='rates')renderOsowRateTable();
+  if(name==='admin')loadAdminData();
+  window.scrollTo(0,0);
+}
+
+function showToast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+(function init() {
+  // Credentials hardcoded — no setup screen needed
+  SB_URL = 'https://kdtlhddkthghqllkshbb.supabase.co';
+  SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkdGxoZGRrdGhnaHFsbGtzaGJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4OTI5NjEsImV4cCI6MjA5NTQ2ODk2MX0.fPsWsMSBgbktKbntFnXubUYW7HoP5OHZPkaMq510-vM';
+  document.getElementById('setupScreen').style.display = 'none';
+  // Check for existing session
+  try {
+    const s = sessionStorage.getItem(SESSION_KEY);
+    if (s) {
+      currentSession = JSON.parse(s);
+      document.getElementById('loginScreen').style.display = 'none';
+      bootApp();
+      return;
+    }
+  } catch(e) {}
+  document.getElementById('loginScreen').style.display = 'flex';
+})();
+</script>
+</body>
+</html>
