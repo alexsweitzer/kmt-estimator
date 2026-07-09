@@ -754,7 +754,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <!-- STATE PERMITS -->
     <div class="card" id="permits-card">
       <div class="card-title">State Permits <span style="font-size:11px;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">— Attach permit documents for this load</span></div>
-      <div id="permits-admin-upload" style="display:none">
+      <div id="permits-admin-upload">
         <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.75rem">Upload state permit PDFs or images. Visible to all users.</p>
         <div id="permits-upload-area" onclick="document.getElementById('permits-file-input').click()" style="border:2px dashed var(--border);border-radius:var(--radius);padding:1rem;text-align:center;cursor:pointer;margin-bottom:0.75rem;transition:border-color 0.15s">
           <div style="font-size:24px;margin-bottom:4px">📄</div>
@@ -2209,6 +2209,7 @@ function editLoad(id) {
   }
   // Lock form if Completed and user is not admin
   applyLoadLockState(l.status);
+  setTimeout(() => renderPermitList(), 50);
   showToast('Editing load log — tap Save when done');
 }
 
@@ -2226,8 +2227,10 @@ function applyLoadLockState(status) {
   if (!form) return;
 
   if (isLocked) {
-    // Disable all inputs and textareas
-    form.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = true; });
+    // Disable all inputs and textareas except permits section
+    form.querySelectorAll('input, select, textarea').forEach(el => {
+      if (!el.closest('#permits-card')) el.disabled = true;
+    });
     // Disable save and clear buttons only
     const saveBtn = document.getElementById('saveLoadBtn');
     const clearBtn = document.getElementById('clearLoadBtn');
@@ -2446,6 +2449,7 @@ function viewLockedLoad(id) {
     if (ctSection) ctSection.style.display = 'none';
   }
   applyLoadLockState('Completed');
+  setTimeout(() => renderPermitList(), 50);
 }
 
 function showLoadsSubTab(tab) {
@@ -2454,6 +2458,7 @@ function showLoadsSubTab(tab) {
   document.getElementById('ltab-list').className = tab === 'list' ? 'btn primary' : 'btn';
   document.getElementById('ltab-new').className = tab === 'new' ? 'btn primary' : 'btn accent';
   if (tab === 'list') { renderLoadsList(); }
+  if (tab === 'new') { setTimeout(() => renderPermitList(), 50); }
   if (tab === 'new') {
     initLoadsForm();
     populateBidSelect();
