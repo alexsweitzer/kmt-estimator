@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- KMT Employee Portal v2.7 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -752,21 +752,17 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     </div>
 
     <!-- STATE PERMITS -->
-    <div class="card" id="permits-card">
-      <div class="card-title">State Permits <span style="font-size:11px;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">— Attach permit documents for this load</span></div>
-      <div id="permits-admin-upload">
-        <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.75rem">Upload state permit PDFs or images. Visible to all users.</p>
-        <div id="permits-upload-area" onclick="document.getElementById('permits-file-input').click()" style="border:2px dashed var(--border);border-radius:var(--radius);padding:1rem;text-align:center;cursor:pointer;margin-bottom:0.75rem;transition:border-color 0.15s">
-          <div style="font-size:24px;margin-bottom:4px">📄</div>
-          <div style="font-size:13px;font-weight:500;color:var(--text-muted)">Tap to upload permit documents</div>
-          <div style="font-size:11px;color:var(--gray-400);margin-top:2px">PDF, JPG, PNG up to 10MB each</div>
-          <input type="file" id="permits-file-input" accept=".pdf,image/*" multiple style="display:none" onchange="handlePermitUpload(this.files)">
-        </div>
-        <div id="permits-upload-progress" style="display:none;font-size:12px;color:var(--text-muted);margin-bottom:0.75rem;padding:6px 10px;background:var(--blue-bg);border-radius:var(--radius)"></div>
+    <div class="card">
+      <div class="card-title">State Permits <span style="font-size:11px;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">— Permit documents for this load</span></div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.75rem">Upload state permit PDFs or images. All users can view. Only admins can upload or delete.</p>
+      <div id="permits-upload-area" onclick="if(currentSession&&currentSession.role==='admin')document.getElementById('permits-file-input').click()" style="border:2px dashed var(--border);border-radius:var(--radius);padding:1.25rem;text-align:center;cursor:pointer;transition:border-color 0.15s;margin-bottom:0.75rem">
+        <div style="font-size:28px;margin-bottom:6px">📄</div>
+        <div style="font-size:13px;font-weight:500;color:var(--text-muted)" id="permits-upload-label">Tap to upload state permits (Admin only)</div>
+        <div style="font-size:11px;color:var(--gray-400);margin-top:3px">PDF, JPG, PNG up to 10MB each</div>
+        <input type="file" id="permits-file-input" accept=".pdf,image/*" multiple style="display:none" onchange="handlePermitUpload(this.files)">
       </div>
-      <div id="permits-list" style="display:flex;flex-direction:column;gap:8px">
-        <div style="font-size:13px;color:var(--text-muted);padding:0.5rem 0">No permits uploaded yet.</div>
-      </div>
+      <div id="permits-upload-progress" style="display:none;font-size:12px;color:var(--text-muted);margin-top:6px;padding:6px 10px;background:var(--blue-bg);border-radius:var(--radius)"></div>
+      <div id="permits-grid" style="display:flex;flex-direction:column;gap:8px"></div>
     </div>
 
     <!-- POST-TRIP PHOTOS -->
@@ -1840,10 +1836,6 @@ let fuelRowCount = 0;
 let loadEditId = null;
 
 function initLoadsForm() {
-  // Show permit upload area only for admins
-  const permUpload = document.getElementById('permits-admin-upload');
-  if (permUpload) permUpload.style.display = (currentSession && currentSession.role === 'admin') ? '' : 'none';
-  renderPermitList();
   // Build damage checkboxes
   const dc = document.getElementById('damageCheckboxes');
   if (dc && !dc.children.length) {
@@ -2209,7 +2201,7 @@ function editLoad(id) {
   }
   // Lock form if Completed and user is not admin
   applyLoadLockState(l.status);
-  setTimeout(() => renderPermitList(), 50);
+  setTimeout(() => renderPermitGrid(), 50);
   showToast('Editing load log — tap Save when done');
 }
 
@@ -2449,7 +2441,7 @@ function viewLockedLoad(id) {
     if (ctSection) ctSection.style.display = 'none';
   }
   applyLoadLockState('Completed');
-  setTimeout(() => renderPermitList(), 50);
+  setTimeout(() => renderPermitGrid(), 50);
 }
 
 function showLoadsSubTab(tab) {
@@ -2458,7 +2450,7 @@ function showLoadsSubTab(tab) {
   document.getElementById('ltab-list').className = tab === 'list' ? 'btn primary' : 'btn';
   document.getElementById('ltab-new').className = tab === 'new' ? 'btn primary' : 'btn accent';
   if (tab === 'list') { renderLoadsList(); }
-  if (tab === 'new') { setTimeout(() => renderPermitList(), 50); }
+  if (tab === 'new') { setTimeout(() => renderPermitGrid(), 50); }
   if (tab === 'new') {
     initLoadsForm();
     populateBidSelect();
@@ -2466,7 +2458,7 @@ function showLoadsSubTab(tab) {
       clearLoadForm();
       applyLoadLockState('In Progress');
     }
-    renderPermitList();
+    renderPermitGrid();
     // Re-apply driver name — use longer delay for mobile
     prefillDriverName();
     setTimeout(() => prefillDriverName(), 300);
@@ -3647,18 +3639,18 @@ function applyPhoneFormat(id) {
 // ══════════════════════════════════════════════
 // STATE PERMITS
 // ══════════════════════════════════════════════
-const PERMIT_BUCKET = 'kmt-load-photos'; // reuse same bucket, different path
-let permitState = []; // array of {name, url, uploaded_at}
+const PERMIT_BUCKET = 'kmt-load-photos';
+let permitState = [];
 
 async function handlePermitUpload(files) {
   if (!files || !files.length) return;
   const progress = document.getElementById('permits-upload-progress');
-  progress.style.display = 'block';
   const loadId = loadEditId || ('new_' + Date.now());
+  if (progress) progress.style.display = 'block';
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     if (file.size > 10 * 1024 * 1024) { showToast(file.name + ' too large (max 10MB)'); continue; }
-    progress.textContent = 'Uploading ' + (i+1) + ' of ' + files.length + '...';
+    if (progress) progress.textContent = 'Uploading ' + (i+1) + ' of ' + files.length + '...';
     try {
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
       const path = 'loads/' + loadId + '/permits/' + Date.now() + '_' + safeName;
@@ -3670,27 +3662,23 @@ async function handlePermitUpload(files) {
       if (!res.ok) throw new Error(await res.text());
       const publicUrl = SB_STORAGE_URL + '/object/public/' + PERMIT_BUCKET + '/' + path;
       permitState.push({ name: file.name, url: publicUrl, uploaded_at: new Date().toISOString() });
-      renderPermitList();
-    } catch(e) { showToast('Upload failed: ' + file.name); console.error(e); }
+      renderPermitGrid();
+    } catch(e) { showToast('Upload failed: ' + file.name); }
   }
-  progress.textContent = 'Upload complete ✓';
-  setTimeout(() => { progress.style.display = 'none'; }, 2000);
+  if (progress) { progress.textContent = 'Upload complete ✓'; setTimeout(() => { progress.style.display = 'none'; }, 2000); }
   document.getElementById('permits-file-input').value = '';
 }
 
-function renderPermitList() {
-  const el = document.getElementById('permits-list');
-  if (!el) return;
+function renderPermitGrid() {
+  const grid = document.getElementById('permits-grid');
+  if (!grid) return;
   const isAdmin = currentSession && currentSession.role === 'admin';
-  // Always show/hide upload area based on role
-  const uploadArea = document.getElementById('permits-admin-upload');
-  if (uploadArea) uploadArea.style.display = isAdmin ? '' : 'none';
   if (!permitState.length) {
-    el.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:0.5rem 0">No permits uploaded yet.</div>';
+    grid.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:0.5rem 0">No permits uploaded yet.</div>';
     return;
   }
-  el.innerHTML = permitState.map((p, idx) => {
-    const isPdf = p.name.toLowerCase().endsWith('.pdf') || p.url.includes('.pdf');
+  grid.innerHTML = permitState.map((p, idx) => {
+    const isPdf = p.name.toLowerCase().endsWith('.pdf');
     const icon = isPdf ? '📄' : '🖼️';
     const dt = p.uploaded_at ? new Date(p.uploaded_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '';
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius)">
@@ -3699,27 +3687,28 @@ function renderPermitList() {
         <div style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
         ${dt ? `<div style="font-size:11px;color:var(--text-muted)">Uploaded ${dt}</div>` : ''}
       </div>
-      <a href="${p.url}" target="_blank" class="btn sm primary" style="flex-shrink:0;text-decoration:none;display:inline-flex;align-items:center;gap:4px">👁 View</a>
-      ${isAdmin ? `<button class="btn sm danger" onclick="deletePermit(${idx})" style="flex-shrink:0">🗑</button>` : ''}
+      <a href="${p.url}" target="_blank" class="btn sm primary" style="flex-shrink:0;text-decoration:none">👁 View</a>
+      ${isAdmin ? `<button class="btn sm danger" onclick="deletePermit(${idx})">🗑</button>` : ''}
     </div>`;
   }).join('');
 }
 
 function deletePermit(idx) {
-  if (!confirm('Remove this permit document?')) return;
+  if (!confirm('Remove this permit?')) return;
   permitState.splice(idx, 1);
-  renderPermitList();
+  renderPermitGrid();
   showToast('Permit removed');
 }
 
 function clearPermits() {
   permitState = [];
-  renderPermitList();
+  const grid = document.getElementById('permits-grid');
+  if (grid) grid.innerHTML = '<div style="font-size:13px;color:var(--text-muted);padding:0.5rem 0">No permits uploaded yet.</div>';
 }
 
 function restorePermits(permits) {
   permitState = Array.isArray(permits) ? permits : [];
-  renderPermitList();
+  renderPermitGrid();
 }
 
 // ══════════════════════════════════════════════
