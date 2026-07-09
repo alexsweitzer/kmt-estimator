@@ -2431,6 +2431,7 @@ function viewLockedLoad(id) {
   restoreInspectionData(l.truck_inspection, 'truck');
   restoreInspectionData(l.trailer_inspection, 'trailer');
   restorePhotos(l.pretrip_photos, l.posttrip_photos);
+  restorePermits(l.state_permits);
   // Restore customer trailer info
   const ctSection = document.getElementById('customer-trailer-section');
   const trailSel = document.getElementById('ld-trailer-select');
@@ -2460,6 +2461,7 @@ function showLoadsSubTab(tab) {
       clearLoadForm();
       applyLoadLockState('In Progress');
     }
+    renderPermitList();
     // Re-apply driver name — use longer delay for mobile
     prefillDriverName();
     setTimeout(() => prefillDriverName(), 300);
@@ -3675,7 +3677,7 @@ function renderPermitList() {
   const el = document.getElementById('permits-list');
   if (!el) return;
   const isAdmin = currentSession && currentSession.role === 'admin';
-  // Show/hide upload area
+  // Always show/hide upload area based on role
   const uploadArea = document.getElementById('permits-admin-upload');
   if (uploadArea) uploadArea.style.display = isAdmin ? '' : 'none';
   if (!permitState.length) {
@@ -3711,7 +3713,7 @@ function clearPermits() {
 }
 
 function restorePermits(permits) {
-  permitState = permits || [];
+  permitState = Array.isArray(permits) ? permits : [];
   renderPermitList();
 }
 
