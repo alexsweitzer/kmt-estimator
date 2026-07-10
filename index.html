@@ -2181,6 +2181,7 @@ function renderLoadsList() {
     const isLocked = l.status === 'Completed' && !isAdmin;
     const bitv = (l.status === 'In Progress') ? matchBitVehicle(l.truck) : null;
     const pinBadge = bitv ? `<span class="badge" style="background:#e6f4ea;color:#0a7d33;cursor:pointer" onclick="event.stopPropagation();focusVehicle('${bitv.bit_id}')">📍 ${[bitv.number || 'Tracked', speedText(bitv), placeText(bitv), agoText(bitv.located_at)].filter(Boolean).join(' · ')}</span>` : '';
+    const shareBtn = (l.status === 'In Progress' && bitv) ? `<button class="btn sm" onclick="event.stopPropagation();openShareModal('${bitv.bit_id}','${escAttr(bitv.number||'')}','${l.id}')" style="font-size:11px;padding:3px 10px;background:#e8a020;color:#1a2744;border:none;font-weight:700">🔗 Share Tracking</button>` : '';
     return `<div class="bid-card" onclick="${isLocked ? "viewLockedLoad('" + l.id + "')" : "editLoad('" + l.id + "')"}">
       <div class="bid-card-top">
         <div style="flex:1;min-width:0">
@@ -2197,6 +2198,7 @@ function renderLoadsList() {
       <div class="bid-card-meta">
         <span class="badge ${bc}">${l.status || 'In Progress'}</span>
         ${pinBadge}
+        ${shareBtn}
         ${isLocked ? '<span class="badge red">🔒 Locked</span>' : ''}
         ${l.truck ? `<span class="badge gray">Truck: ${l.truck}</span>` : ''}
         ${l.trailer ? `<span class="badge gray">Trailer: ${l.trailer}</span>` : ''}
@@ -2823,14 +2825,13 @@ function renderTrackingList(){
     const stale=isStale(v.located_at);
     const driver = v.driver_name ? v.driver_name : 'Unassigned';
     const ld=findLoadForVehicle(v);
-    const ldBtn=ld?('<button onclick="event.stopPropagation();openLoadFromPin(\''+ld.id+'\')" style="margin-top:8px;margin-right:6px;padding:5px 12px;background:#1a2744;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">\ud83d\udccb Open Load Log</button>'):'';
-    const shareBtn='<button onclick="event.stopPropagation();openShareModal(\''+v.bit_id+'\',\''+escAttr(v.number||'')+'\''+(ld?(',\''+ld.id+'\''):'')+')" style="margin-top:8px;padding:5px 12px;background:#e8a020;color:#1a2744;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer">\ud83d\udd17 Share Tracking</button>';
+    const ldBtn=ld?('<button onclick="event.stopPropagation();openLoadFromPin(\''+ld.id+'\')" style="margin-top:8px;padding:5px 12px;background:#1a2744;color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">\ud83d\udccb Open Load Log</button>'):'';
     return '<div class="bid-card" style="cursor:pointer" onclick="focusVehicle(\''+v.bit_id+'\')">'
       +'<div class="bid-card-top"><div style="flex:1;min-width:0">'
       +'<div class="bid-card-name">\ud83d\ude9b '+(v.number||v.bit_id)+'</div>'
       +'<div class="bid-card-sub" style="font-weight:600;color:var(--navy);margin-top:2px">\ud83d\udc64 '+driver+'</div>'
       +'<div class="bid-card-sub" style="margin-top:1px">'+([speedText(v), placeText(v)].filter(Boolean).join(' \u00b7 ')||'\u2014')+'</div>'
-      +'<div>'+ldBtn+shareBtn+'</div>'
+      +'<div>'+ldBtn+'</div>'
       +'</div><div style="flex-shrink:0;margin-left:12px;text-align:right">'
       +'<div style="font-size:12px;font-weight:600;color:'+(stale?'var(--text-muted)':'#0a7d33')+'">'+agoText(v.located_at)+'</div>'
       +(stale?'<div style="font-size:10px;color:var(--text-muted)">stale</div>':'')
