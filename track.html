@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#1a2744">
+<title>Live Shipment Tracking — Kentmorr Marine Transport</title>
+<style>
+:root{
+  --navy:#1a2744;--navy-light:#243258;--accent:#e8a020;
+  --green:#1e9e5a;--gray-50:#f8f8f6;--gray-100:#efefec;
+  --text:#1e1e1c;--text-muted:#5c5b56;--border:#ddddd8;
+  --radius:12px;--shadow:0 4px 20px rgba(26,39,68,0.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--gray-50);color:var(--text)}
+.wrap{min-height:100vh;display:flex;flex-direction:column}
+
+/* Header */
+.hdr{background:var(--navy);color:#fff;padding:14px 18px;display:flex;align-items:center;gap:12px}
+.hdr img{width:40px;height:40px;object-fit:contain;flex-shrink:0}
+.hdr .t{line-height:1.2}
+.hdr .t-main{font-size:15px;font-weight:700;letter-spacing:-0.01em}
+.hdr .t-sub{font-size:11px;color:rgba(255,255,255,0.6)}
+
+/* Content */
+.content{flex:1;max-width:720px;margin:0 auto;width:100%;padding:16px}
+
+.status-bar{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;box-shadow:var(--shadow)}
+.pulse{width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0;position:relative}
+.pulse::after{content:'';position:absolute;inset:-4px;border-radius:50%;background:var(--green);opacity:0.35;animation:ping 1.8s cubic-bezier(0,0,0.2,1) infinite}
+.pulse.stale{background:var(--text-muted)}
+.pulse.stale::after{display:none}
+@keyframes ping{0%{transform:scale(1);opacity:0.35}70%,100%{transform:scale(2.4);opacity:0}}
+.status-txt{flex:1;min-width:0}
+.status-txt .line1{font-size:15px;font-weight:600}
+.status-txt .line2{font-size:12px;color:var(--text-muted);margin-top:1px}
+
+#map{width:100%;height:min(58vh,460px);border-radius:var(--radius);border:1px solid var(--border);background:var(--gray-100);box-shadow:var(--shadow)}
+
+.meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.meta .cell{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px}
+.meta .k{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:3px}
+.meta .v{font-size:16px;font-weight:600}
+
+.foot{text-align:center;font-size:11px;color:var(--text-muted);padding:18px}
+.foot a{color:var(--navy);text-decoration:none}
+
+/* States */
+.center-state{flex:1;display:flex;align-items:center;justify-content:center;padding:2rem}
+.card-state{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:2rem 1.5rem;text-align:center;max-width:380px;box-shadow:var(--shadow)}
+.card-state .icon{font-size:40px;margin-bottom:12px}
+.card-state h2{font-size:18px;color:var(--navy);margin-bottom:6px}
+.card-state p{font-size:14px;color:var(--text-muted);line-height:1.5}
+.spinner{width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--navy);border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="hdr">
+    <img id="hdrLogo" alt="" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><circle cx='20' cy='20' r='19' fill='none' stroke='%23e8a020' stroke-width='2'/><text x='20' y='26' font-size='16' font-family='sans-serif' font-weight='700' fill='white' text-anchor='middle'>KMT</text></svg>">
+    <div class="t">
+      <div class="t-main">Live Shipment Tracking</div>
+      <div class="t-sub">Kentmorr Marine Transport</div>
+    </div>
+  </div>
+
+  <!-- Loading state (default) -->
+  <div class="center-state" id="loadingState">
+    <div class="card-state">
+      <div class="spinner"></div>
+      <h2>Loading tracking…</h2>
+      <p>Fetching the latest location for your shipment.</p>
+    </div>
+  </div>
+
+  <!-- Live state (hidden until data loads) -->
+  <div class="content" id="liveState" style="display:none">
+    <div class="status-bar">
+      <div class="pulse" id="pulse"></div>
+      <div class="status-txt">
+        <div class="line1" id="statusLine1">Locating vehicle…</div>
+        <div class="line2" id="statusLine2"></div>
+      </div>
+    </div>
+    <div id="map"></div>
+    <div class="meta">
+      <div class="cell"><div class="k">Current Location</div><div class="v" id="mLocation">—</div></div>
+      <div class="cell"><div class="k">Status</div><div class="v" id="mStatus">—</div></div>
+    </div>
+    <div class="foot">
+      Powered by Kentmorr Marine Transport · <span id="expiryNote"></span>
+    </div>
+  </div>
+
+  <!-- Error / expired states injected here -->
+  <div class="center-state" id="errorState" style="display:none">
+    <div class="card-state">
+      <div class="icon" id="errIcon">🔒</div>
+      <h2 id="errTitle">Link unavailable</h2>
+      <p id="errMsg">This tracking link is no longer active.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG — set these two before deploying
+// ============================================================
+const SUPABASE_PROJECT = 'kdtlhddkthghqllkshbb';   // your project ref
+const GMAPS_KEY = 'AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g';
+const FN_URL = 'https://' + SUPABASE_PROJECT + '.supabase.co/functions/v1/track';
+// ============================================================
+
+const params = new URLSearchParams(location.search);
+const token = params.get('t');
+let map, marker, gmapsReady = false, pollTimer = null;
+
+function showError(icon, title, msg){
+  document.getElementById('loadingState').style.display='none';
+  document.getElementById('liveState').style.display='none';
+  document.getElementById('errIcon').textContent=icon;
+  document.getElementById('errTitle').textContent=title;
+  document.getElementById('errMsg').textContent=msg;
+  document.getElementById('errorState').style.display='flex';
+  if(pollTimer) clearInterval(pollTimer);
+}
+
+function agoText(ts){
+  if(!ts) return 'no recent report';
+  const then=new Date(ts).getTime(); if(isNaN(then)) return 'no recent report';
+  const secs=Math.max(0,Math.floor((Date.now()-then)/1000));
+  if(secs<90) return 'just now';
+  const mins=Math.floor(secs/60); if(mins<60) return mins+' min ago';
+  const hrs=Math.floor(mins/60); if(hrs<24) return hrs+' hr ago';
+  return Math.floor(hrs/24)+' days ago';
+}
+function isStale(ts){ if(!ts) return true; const then=new Date(ts).getTime(); if(isNaN(then)) return true; return (Date.now()-then) > 15*60*1000; }
+
+function loadGmaps(){
+  return new Promise((resolve)=>{
+    if(window.google && google.maps){ gmapsReady=true; return resolve(); }
+    window.__gmapsCb=()=>{ gmapsReady=true; resolve(); };
+    const s=document.createElement('script');
+    s.src='https://maps.googleapis.com/maps/api/js?key='+GMAPS_KEY+'&callback=__gmapsCb';
+    s.async=true; s.defer=true;
+    document.head.appendChild(s);
+  });
+}
+
+function ensureMap(lat,lng){
+  if(!gmapsReady) return;
+  if(!map){
+    map=new google.maps.Map(document.getElementById('map'),{
+      center:{lat,lng},zoom:11,mapTypeControl:false,streetViewControl:false,fullscreenControl:true,
+      styles:[{featureType:'poi',stylers:[{visibility:'off'}]}]
+    });
+    marker=new google.maps.Marker({map,position:{lat,lng}});
+  }else{
+    marker.setPosition({lat,lng});
+    map.panTo({lat,lng});
+  }
+}
+
+async function poll(){
+  try{
+    const res=await fetch(FN_URL+'?t='+encodeURIComponent(token));
+    if(res.status===410){ const b=await res.json().catch(()=>({})); 
+      if(b.error==='revoked') return showError('🚫','Tracking ended','This tracking link has been turned off by Kentmorr Marine Transport.');
+      return showError('⏰','Link expired','This tracking link has expired. Contact Kentmorr Marine Transport for an updated link.');
+    }
+    if(res.status===404){ return showError('🔗','Link not found','This tracking link isn\'t valid. Please double-check the link you were sent.'); }
+    if(!res.ok){ throw new Error('http '+res.status); }
+    const data=await res.json();
+    if(!data.ok){ return showError('🔗','Link unavailable','This tracking link is no longer active.'); }
+
+    // Reveal live view
+    document.getElementById('loadingState').style.display='none';
+    document.getElementById('errorState').style.display='none';
+    document.getElementById('liveState').style.display='block';
+
+    const vehName = data.vehicle_number || 'Your shipment';
+    const p = data.position;
+
+    // Expiry note
+    if(data.expires_at){
+      const exp=new Date(data.expires_at);
+      document.getElementById('expiryNote').textContent='Link active until '+exp.toLocaleString([], {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    }
+
+    if(!p || p.lat==null || p.lon==null){
+      document.getElementById('pulse').className='pulse stale';
+      document.getElementById('statusLine1').textContent='Waiting for location';
+      document.getElementById('statusLine2').textContent='No recent position reported yet.';
+      document.getElementById('mLocation').textContent='—';
+      document.getElementById('mStatus').textContent='Awaiting report';
+      return;
+    }
+
+    const stale=isStale(p.located_at);
+    const place=[p.city,p.state].filter(Boolean).join(', ')||'Location updating';
+    const moving=(p.speed_mph!=null && p.speed_mph>2);
+
+    document.getElementById('pulse').className='pulse'+(stale?' stale':'');
+    document.getElementById('statusLine1').textContent = stale ? 'Last known location' : (moving ? 'On the move' : 'Currently stopped');
+    document.getElementById('statusLine2').textContent = 'Updated '+agoText(p.located_at);
+    document.getElementById('mLocation').textContent = place;
+    document.getElementById('mStatus').textContent = stale ? 'No recent report' : (moving ? Math.round(p.speed_mph)+' mph' : 'Stopped');
+
+    await loadGmaps();
+    ensureMap(Number(p.lat),Number(p.lon));
+  }catch(e){
+    // Soft-fail: keep the last view, don't blow up on a transient network hiccup
+    console.warn('poll error', e);
+  }
+}
+
+// Boot
+if(!token){
+  showError('🔗','No tracking link','This page needs a tracking link. Please use the link sent to you by Kentmorr Marine Transport.');
+}else{
+  poll();
+  pollTimer=setInterval(poll, 30000); // refresh every 30s
+}
+</script>
+</body>
+</html>
