@@ -85,9 +85,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       </div>
     </div>
     <div id="map"></div>
-    <div class="meta">
+    <div class="meta" id="metaGrid">
       <div class="cell"><div class="k">Current Location</div><div class="v" id="mLocation">—</div></div>
-      <div class="cell"><div class="k">Status</div><div class="v" id="mStatus">—</div></div>
+      <div class="cell" id="cellCustomer" style="display:none"><div class="k">Customer</div><div class="v" id="mCustomer">—</div></div>
+      <div class="cell" id="cellVessel" style="display:none"><div class="k">Vessel</div><div class="v" id="mVessel">—</div></div>
+      <div class="cell" id="cellPickup" style="display:none"><div class="k">Pickup</div><div class="v" id="mPickup">—</div></div>
+      <div class="cell" id="cellDest" style="display:none"><div class="k">Destination</div><div class="v" id="mDest">—</div></div>
     </div>
     <div class="foot">
       Powered by Kentmorr Marine Transport · <span id="expiryNote"></span>
@@ -182,6 +185,19 @@ async function poll(){
 
     const vehName = data.vehicle_number || 'Your shipment';
     const p = data.position;
+    const ld = data.load || null;
+
+    // Fill load context cells (show a cell only if it has a value)
+    function setCell(cellId, valId, val){
+      const cell=document.getElementById(cellId), v=document.getElementById(valId);
+      if(val){ v.textContent=val; cell.style.display=''; } else { cell.style.display='none'; }
+    }
+    if(ld){
+      setCell('cellCustomer','mCustomer', ld.customer);
+      setCell('cellVessel','mVessel', ld.vessel);
+      setCell('cellPickup','mPickup', ld.pickup);
+      setCell('cellDest','mDest', ld.destination);
+    }
 
     // Expiry note
     if(data.expires_at){
@@ -194,7 +210,6 @@ async function poll(){
       document.getElementById('statusLine1').textContent='Waiting for location';
       document.getElementById('statusLine2').textContent='No recent position reported yet.';
       document.getElementById('mLocation').textContent='—';
-      document.getElementById('mStatus').textContent='Awaiting report';
       return;
     }
 
@@ -206,7 +221,6 @@ async function poll(){
     document.getElementById('statusLine1').textContent = stale ? 'Last known location' : (moving ? 'On the move' : 'Currently stopped');
     document.getElementById('statusLine2').textContent = 'Updated '+agoText(p.located_at);
     document.getElementById('mLocation').textContent = place;
-    document.getElementById('mStatus').textContent = stale ? 'No recent report' : (moving ? Math.round(p.speed_mph)+' mph' : 'Stopped');
 
     await loadGmaps();
     ensureMap(Number(p.lat),Number(p.lon));
