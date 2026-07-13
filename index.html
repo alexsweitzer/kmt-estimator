@@ -683,8 +683,18 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
             </div>
           </div>
         </div>
-        <div class="field"><label>Driver (First Last)</label><input type="text" id="ld-driver" placeholder="Driver name"></div>
-        <div class="field"><label>Co-Driver (First Last)</label><input type="text" id="ld-codriver" placeholder="Co-driver name"></div>
+        <div class="field">
+          <label>Driver</label>
+          <select id="ld-driver" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+            <option value="">— Select Driver —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Co-Driver</label>
+          <select id="ld-codriver" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+            <option value="">— None —</option>
+          </select>
+        </div>
 
       </div>
     </div>
@@ -1343,6 +1353,7 @@ function bootApp(){
   const app=document.getElementById('mainApp');
   loadEquipmentFromDB();
   loadMyProfile();
+  loadDriverRoster();
   loadGmapsKey();
   if(!gmapsLoaded) loadGmapsScript('AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g');
   app.style.display='flex';app.style.flexDirection='column';
@@ -2283,7 +2294,7 @@ function editLoad(id) {
   // Restore all fields
   const sv = (i, v) => { const el = document.getElementById(i); if (el) el.value = v || ''; };
   sv('ld-date', l.date); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
-  sv('ld-driver', l.driver); sv('ld-codriver', l.codriver); sv('ld-status', l.status);
+  setDriverSelect('ld-driver', l.driver); setDriverSelect('ld-codriver', l.codriver); sv('ld-status', l.status);
   sv('ld-customer', l.customer); sv('ld-contact', l.contact); applyPhoneFormat('ld-contact');
   sv('ld-make', l.make); sv('ld-model', l.model); sv('ld-loa', l.loa); sv('ld-beam', l.beam);
   sv('ld-color', l.color); sv('ld-boatname', l.boatname); sv('ld-weight', l.weight);
@@ -2531,7 +2542,7 @@ function viewLockedLoad(id) {
   if (!l) return;
   const sv = (i, v) => { const el = document.getElementById(i); if (el) el.value = v || ''; };
   sv('ld-date', l.date); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
-  sv('ld-driver', l.driver); sv('ld-codriver', l.codriver); sv('ld-status', l.status);
+  setDriverSelect('ld-driver', l.driver); setDriverSelect('ld-codriver', l.codriver); sv('ld-status', l.status);
   sv('ld-customer', l.customer); sv('ld-contact', l.contact); applyPhoneFormat('ld-contact');
   sv('ld-make', l.make); sv('ld-model', l.model); sv('ld-loa', l.loa); sv('ld-beam', l.beam);
   sv('ld-color', l.color); sv('ld-boatname', l.boatname); sv('ld-weight', l.weight);
@@ -2587,6 +2598,7 @@ function showLoadsSubTab(tab) {
     initLoadsForm();
     populateBidSelect();
     populateEquipDropdowns();
+    populateDriverSelects();
     if (!loadEditId) {
       clearLoadForm();
       applyLoadLockState('In Progress');
@@ -4183,6 +4195,59 @@ async function loadMyProfile() {
   }
 }
 
+// ── DRIVER ROSTER (for Driver / Co-Driver dropdowns) ──
+let driverRoster = []; // [{username, name}]
+
+async function loadDriverRoster(){
+  try {
+    const [users, profiles] = await Promise.all([
+      sb('kmt_users?select=username,display_name'),
+      sb('kmt_profiles?select=username,first_name,last_name')
+    ]);
+    driverRoster = (users || []).map(u => {
+      const p = (profiles || []).find(x => x.username === u.username);
+      const full = p ? [p.first_name, p.last_name].filter(Boolean).join(' ') : '';
+      return { username: u.username, name: full || u.display_name || u.username };
+    }).filter(x => x.name)
+      .sort((a,b) => a.name.localeCompare(b.name));
+  } catch(e) { driverRoster = []; }
+  populateDriverSelects();
+}
+
+function populateDriverSelects(){
+  ['ld-driver','ld-codriver'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel || sel.tagName !== 'SELECT') return;
+    const cur = sel.value; // keep whatever is already chosen
+    const isCo = id === 'ld-codriver';
+    let html = `<option value="">${isCo ? '— None —' : '— Select Driver —'}</option>`;
+    html += driverRoster.map(d => `<option value="${escAttr(d.name)}">${d.name}</option>`).join('');
+    // If the saved value isn't in the roster (e.g. an old free-text name), keep it as an option
+    // so editing an old load doesn't silently wipe its driver.
+    if (cur && !driverRoster.some(d => d.name === cur)) {
+      html += `<option value="${escAttr(cur)}">${cur} (not a current user)</option>`;
+    }
+    sel.innerHTML = html;
+    sel.value = cur;
+  });
+}
+
+// Set a driver/co-driver <select> to a saved value, keeping legacy or
+// no-longer-active names selectable instead of silently blanking them.
+function setDriverSelect(id, value){
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  const v = String(value || '');
+  if (sel.tagName !== 'SELECT') { sel.value = v; return; }
+  if (v && !Array.from(sel.options).some(o => o.value === v)) {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = v + (driverRoster.some(d => d.name === v) ? '' : ' (not a current user)');
+    sel.appendChild(opt);
+  }
+  sel.value = v;
+}
+
 function prefillDriverName() {
   const el = document.getElementById('ld-driver');
   if (!el) return;
@@ -4196,7 +4261,21 @@ function prefillDriverName() {
     : (currentSession && currentSession.fullName)
     ? currentSession.fullName
     : (currentSession ? (currentSession.displayName || currentSession.username) : '');
-  if (name) el.value = name;
+  if (!name) return;
+  // The driver field is a <select>: make sure the roster contains this name,
+  // then select it. (Roster may still be loading on first open.)
+  if (el.tagName === 'SELECT') {
+    if (!driverRoster.some(d => d.name === name)) {
+      // Roster not loaded yet (or current user missing from it) — add them so the
+      // selection sticks instead of silently falling back to blank.
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      el.appendChild(opt);
+    }
+    el.value = name;
+  } else {
+    el.value = name;
+  }
 }
 
 function renderMyProfile() {
