@@ -607,6 +607,14 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="form-grid">
         <div class="field"><label>Date</label><input type="date" id="ld-date"></div>
         <div class="field"><label>Trip Price ($)</label><input type="number" step="0.01" id="ld-trip-price" placeholder="0.00"></div>
+        <div class="field">
+          <label>Payment Type</label>
+          <select id="ld-payment-type" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+            <option value="">— Select —</option>
+            <option value="COD">COD (Cash/Check)</option>
+            <option value="Invoiced">Invoiced</option>
+          </select>
+        </div>
         <div class="field full">
           <label>Truck</label>
           <select id="ld-truck-select" onchange="onTruckSelect()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"><option value="">— Select Truck —</option></select>
@@ -2036,6 +2044,7 @@ function getLoadFormData() {
   return {
     date: document.getElementById('ld-date').value || null,
     trip_price: num('ld-trip-price'),
+    payment_type: txt('ld-payment-type'),
     truck: txt('ld-truck'),
     trailer: txt('ld-trailer'),
     driver: txt('ld-driver'),
@@ -2089,7 +2098,7 @@ function getLoadFormData() {
 
 async function loadLogsFromDB() {
   try {
-    loads = await sb('kmt_loads?select=*&order=created_at.desc');
+    loads = await sb('kmt_loads?select=*&order=date.desc');
     renderLoadsList();
   } catch(e) { showToast('Could not load logs'); }
 }
@@ -2165,6 +2174,15 @@ function renderLoadsList() {
     const txt = [l.customer, l.driver, l.boatname, l.make, l.model, l.pickup_city, l.delivery_city].join(' ').toLowerCase();
     return (!q || txt.includes(q)) && (!sf || l.status === sf);
   });
+  // Sort by trip date, newest first. Loads with no date fall to the bottom.
+  // Ties (same date) fall back to most recently created.
+  filtered.sort((a, b) => {
+    const ad = a.date || '', bd = b.date || '';
+    if (ad && bd && ad !== bd) return bd.localeCompare(ad);
+    if (ad && !bd) return -1;
+    if (!ad && bd) return 1;
+    return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+  });
   const el = document.getElementById('loadsList');
   if (!filtered.length) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">🚚</div><p>${loads.length ? 'No logs match your search.' : 'No load logs yet. Click + New Load Log to create one.'}</p></div>`;
@@ -2196,6 +2214,7 @@ function renderLoadsList() {
       </div>
       <div class="bid-card-meta">
         <span class="badge ${bc}">${l.status || 'In Progress'}</span>
+        ${l.payment_type ? `<span class="badge ${l.payment_type === 'COD' ? 'green' : 'blue'}">${l.payment_type === 'COD' ? '💵 COD' : '🧾 Invoiced'}</span>` : ''}
         ${pinBadge}
         ${shareBtn}
         ${isLocked ? '<span class="badge red">🔒 Locked</span>' : ''}
@@ -2224,7 +2243,7 @@ function editLoad(id) {
   showLoadsSubTab('new');
   // Restore all fields
   const sv = (i, v) => { const el = document.getElementById(i); if (el) el.value = v || ''; };
-  sv('ld-date', l.date); sv('ld-trip-price', l.trip_price); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
+  sv('ld-date', l.date); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
   sv('ld-driver', l.driver); sv('ld-codriver', l.codriver); sv('ld-status', l.status);
   sv('ld-customer', l.customer); sv('ld-contact', l.contact); applyPhoneFormat('ld-contact');
   sv('ld-make', l.make); sv('ld-model', l.model); sv('ld-loa', l.loa); sv('ld-beam', l.beam);
@@ -2301,7 +2320,7 @@ function applyLoadLockState(status) {
 
 function clearLoadForm() {
   loadEditId = null;
-  ['ld-date','ld-trip-price','ld-truck','ld-trailer','ld-driver','ld-codriver','ld-customer','ld-contact','ld-ct-year','ld-ct-make','ld-ct-model','ld-ct-vin','ld-ct-plate','ld-ct-axles',
+  ['ld-date','ld-trip-price','ld-payment-type','ld-truck','ld-trailer','ld-driver','ld-codriver','ld-customer','ld-contact','ld-ct-year','ld-ct-make','ld-ct-model','ld-ct-vin','ld-ct-plate','ld-ct-axles',
    'ld-make','ld-model','ld-loa','ld-beam','ld-color','ld-boatname','ld-weight','ld-height',
    'ld-hullid','ld-regdoc','ld-loadedheight','ld-pickup-name','ld-pickup-street','ld-pickup-city',
    'ld-delivery-name','ld-delivery-street','ld-delivery-city','ld-miles-start','ld-miles-stop',
@@ -2472,7 +2491,7 @@ function viewLockedLoad(id) {
   const l = loads.find(x => x.id == id);
   if (!l) return;
   const sv = (i, v) => { const el = document.getElementById(i); if (el) el.value = v || ''; };
-  sv('ld-date', l.date); sv('ld-trip-price', l.trip_price); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
+  sv('ld-date', l.date); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
   sv('ld-driver', l.driver); sv('ld-codriver', l.codriver); sv('ld-status', l.status);
   sv('ld-customer', l.customer); sv('ld-contact', l.contact); applyPhoneFormat('ld-contact');
   sv('ld-make', l.make); sv('ld-model', l.model); sv('ld-loa', l.loa); sv('ld-beam', l.beam);
