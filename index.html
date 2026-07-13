@@ -7,6 +7,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Employee Portal">
 <meta name="theme-color" content="#1a2744">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>KMT Employee Portal — Kentmorr Marine Transport</title>
 <style>
 :root {
@@ -1174,6 +1176,18 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     </div>
   </div>
 
+  <!-- Notifications -->
+  <div class="card">
+    <div class="card-title">Notifications</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:0.75rem">Get alerted when a load is assigned to you, marked Ready, or scheduled for tomorrow. You'll need to enable this once on each device.</p>
+    <div id="notifStatus" style="font-size:13px;margin-bottom:0.75rem">Checking...</div>
+    <div class="btn-row">
+      <button class="btn accent" id="notifBtn" onclick="enableNotifications()">🔔 Enable Notifications</button>
+      <button class="btn" id="notifTestBtn" onclick="sendTestNotification()" style="display:none">Send Test</button>
+      <button class="btn danger" id="notifOffBtn" onclick="disableNotifications()" style="display:none">Turn Off</button>
+    </div>
+  </div>
+
   <!-- Admin: All Users Profiles -->
   <div class="card" id="all-profiles-card" style="display:none">
     <div class="card-title">All User Profiles</div>
@@ -1354,6 +1368,7 @@ function bootApp(){
   loadEquipmentFromDB();
   loadMyProfile();
   loadDriverRoster();
+  registerSW();
   loadGmapsKey();
   if(!gmapsLoaded) loadGmapsScript('AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g');
   app.style.display='flex';app.style.flexDirection='column';
@@ -2183,18 +2198,24 @@ async function saveLoad() {
   try {
     const data = getLoadFormData();
     const completingId = loadEditId; // capture before it's cleared
+    // Snapshot the load's previous state so we only notify on an actual change
+    const prev = loadEditId ? (loads.find(x => x.id == loadEditId) || null) : null;
     if (loadEditId) {
       await sb('kmt_loads?id=eq.' + loadEditId, 'PATCH', data);
+      data.__id = loadEditId;
       loadEditId = null;
       const errDiv = document.getElementById('load-save-error');
       if (errDiv) errDiv.remove();
       showToast('Load log updated ✓');
     } else {
-      await sb('kmt_loads', 'POST', data);
+      const created = await sb('kmt_loads', 'POST', data);
+      if (created && created[0] && created[0].id) data.__id = created[0].id;
       const errDiv = document.getElementById('load-save-error');
       if (errDiv) errDiv.remove();
       showToast('Load log saved ✓');
     }
+    // Notify the driver if they were just assigned this load, or it just went Ready
+    notifyOnLoadSave(data, prev);
     // Auto-expire any client tracking links tied to this load when it completes
     if (data.status === 'Completed' && completingId) {
       sb('kmt_share_links?load_id=eq.' + completingId, 'PATCH', { revoked: true }).catch(()=>{});
@@ -3203,6 +3224,7 @@ function showTab(name){
   if(name==='equipment'){loadEquipmentFromDB();}
   if(name==='profile'){
     loadMyProfile();
+    renderNotifStatus();
     const allCard = document.getElementById('all-profiles-card');
     if(allCard) allCard.style.display = currentSession.role==='admin' ? '' : 'none';
     if(currentSession.role==='admin') loadAllProfiles();
@@ -4438,6 +4460,204 @@ async function clearAdminProfile() {
   } catch(e) { showToast('Clear failed'); }
 }
 
+
+// ══════════════════════════════════════════════
+// PUSH NOTIFICATIONS
+// ══════════════════════════════════════════════
+const VAPID_PUBLIC_KEY = 'BH0hN5ZUzCQjmfHWvSxfGJt6UuKE8wTT85d11eXmDbtd7X5BUkQJDvBtrFJENr7YZLwPqSNEBGmcPnbUA4cMqzo';
+const PUSH_FN_URL = SB_URL + '/functions/v1/push';
+let swReg = null;
+
+function pushSupported(){
+  return ('serviceWorker' in navigator) && ('PushManager' in window) && ('Notification' in window);
+}
+// iOS only allows push when the app runs from the Home Screen (standalone), not a Safari tab.
+function isStandalone(){
+  return window.navigator.standalone === true ||
+         (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+}
+function isIOS(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+}
+
+async function registerSW(){
+  if (!('serviceWorker' in navigator)) return null;
+  try {
+    swReg = await navigator.serviceWorker.register('sw.js');
+    return swReg;
+  } catch(e) { return null; }
+}
+
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+function myDriverName(){
+  if (myProfile && (myProfile.first_name || myProfile.last_name)) {
+    return [myProfile.first_name, myProfile.last_name].filter(Boolean).join(' ');
+  }
+  return (currentSession && (currentSession.fullName || currentSession.displayName || currentSession.username)) || '';
+}
+
+async function enableNotifications(){
+  const btn = document.getElementById('notifBtn');
+  if (!pushSupported()) { showToast('This browser does not support notifications'); return; }
+  if (isIOS() && !isStandalone()) {
+    alert('To get notifications on iPhone:\n\n1. Open this portal in Safari\n2. Tap the Share button\n3. Choose "Add to Home Screen"\n4. Open the portal from that new icon\n5. Then tap Enable Notifications again\n\n(Apple only allows notifications for apps added to the Home Screen.)');
+    return;
+  }
+  if (btn) { btn.textContent = 'Enabling...'; btn.disabled = true; }
+  try {
+    const reg = swReg || await registerSW();
+    if (!reg) throw new Error('Service worker failed to register');
+
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      showToast('Notifications were not allowed');
+      if (btn) { btn.disabled = false; }
+      renderNotifStatus();
+      return;
+    }
+
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+
+    const raw = sub.toJSON();
+    await sb('kmt_push_subs', 'POST', {
+      username: currentSession.username,
+      driver_name: myDriverName(),
+      endpoint: raw.endpoint,
+      p256dh: raw.keys.p256dh,
+      auth: raw.keys.auth,
+      user_agent: navigator.userAgent.slice(0, 300)
+    });
+
+    showToast('Notifications enabled \u2713');
+  } catch(e) {
+    // A duplicate endpoint just means this device is already registered — that's fine.
+    const msg = String(e && e.message || e);
+    if (msg.includes('duplicate') || msg.includes('409')) showToast('This device is already enabled \u2713');
+    else showToast('Could not enable: ' + msg.slice(0, 60));
+  }
+  if (btn) btn.disabled = false;
+  renderNotifStatus();
+}
+
+async function disableNotifications(){
+  try {
+    const reg = swReg || await registerSW();
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (sub) {
+      const endpoint = sub.endpoint;
+      await sub.unsubscribe();
+      await sb('kmt_push_subs?endpoint=eq.' + encodeURIComponent(endpoint), 'DELETE').catch(()=>{});
+    }
+    showToast('Notifications turned off');
+  } catch(e) { showToast('Could not turn off notifications'); }
+  renderNotifStatus();
+}
+
+async function sendTestNotification(){
+  try {
+    const res = await fetch(PUSH_FN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'test', username: currentSession.username })
+    });
+    const d = await res.json();
+    if (d.sent > 0) showToast('Test sent \u2014 check your notifications');
+    else showToast('No device registered yet. Tap Enable first.');
+  } catch(e) { showToast('Test failed \u2014 is the push function deployed?'); }
+}
+
+async function renderNotifStatus(){
+  const box = document.getElementById('notifStatus');
+  const btn = document.getElementById('notifBtn');
+  const offBtn = document.getElementById('notifOffBtn');
+  const testBtn = document.getElementById('notifTestBtn');
+  if (!box) return;
+
+  if (!pushSupported()) {
+    box.innerHTML = '<span style="color:var(--text-muted)">This browser doesn\'t support notifications.</span>';
+    if (btn) btn.style.display = 'none';
+    if (offBtn) offBtn.style.display = 'none';
+    if (testBtn) testBtn.style.display = 'none';
+    return;
+  }
+  if (isIOS() && !isStandalone()) {
+    box.innerHTML = '<span style="color:var(--amber)">\u26a0\ufe0f On iPhone, add this portal to your Home Screen and open it from there to enable notifications.</span>';
+    if (offBtn) offBtn.style.display = 'none';
+    if (testBtn) testBtn.style.display = 'none';
+    return;
+  }
+
+  const reg = swReg || await registerSW();
+  const sub = reg && await reg.pushManager.getSubscription();
+  const on = !!sub && Notification.permission === 'granted';
+
+  box.innerHTML = on
+    ? '<span style="color:var(--green);font-weight:600">\u2713 Notifications are ON for this device.</span>'
+    : '<span style="color:var(--text-muted)">Notifications are off for this device.</span>';
+  if (btn) { btn.style.display = on ? 'none' : ''; btn.textContent = '\ud83d\udd14 Enable Notifications'; }
+  if (offBtn) offBtn.style.display = on ? '' : 'none';
+  if (testBtn) testBtn.style.display = on ? '' : 'none';
+}
+
+// ── Triggers ──
+// Fire-and-forget: never let a notification failure block saving a load.
+function notifyPush(payload){
+  try {
+    fetch(PUSH_FN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(()=>{});
+  } catch(e) {}
+}
+
+// Called after a load is saved. Compares against the previous state so we only
+// notify on an actual change (newly assigned driver, or newly set to Ready).
+function notifyOnLoadSave(data, prev){
+  const driver = (data.driver || '').trim();
+  if (!driver) return;
+  const route = [(data.pickup_city || '?'), '\u2192', (data.delivery_city || '?')].join(' ');
+  const who = data.customer || 'Load';
+
+  const prevDriver = prev ? (prev.driver || '').trim() : '';
+  const prevStatus = prev ? (prev.status || '') : '';
+
+  // 1) Newly assigned to a driver (new load with a driver, or driver changed)
+  if (driver !== prevDriver) {
+    notifyPush({
+      kind: 'assigned',
+      load_id: data.__id || null,
+      driver_name: driver,
+      title: 'New load assigned to you',
+      body: who + ' \u2014 ' + route + (data.date ? ' \u00b7 ' + data.date : '')
+    });
+  }
+
+  // 2) Newly set to Ready (available for pickup)
+  if (data.status === 'Ready' && prevStatus !== 'Ready') {
+    notifyPush({
+      kind: 'ready',
+      load_id: data.__id || null,
+      driver_name: driver,
+      title: 'Load ready for pickup',
+      body: who + ' \u2014 ' + route + (data.date ? ' \u00b7 ' + data.date : '')
+    });
+  }
+}
 
 // ══════════════════════════════════════════════
 // PHONE FORMATTING
