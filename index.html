@@ -622,13 +622,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
         </div>
         <div class="field"><label>Truck # <span style="font-weight:400;color:var(--text-muted)">(or type manually)</span></label><input type="text" id="ld-truck" placeholder="Truck #" oninput="onTruckManualInput()"></div>
         <div class="field full">
-          <label>Select Trailer from Equipment</label>
-          <div style="display:flex;gap:8px;align-items:center">
-            <select id="ld-trailer-select" onchange="onTrailerSelectChange()" style="flex:1;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"><option value="">— Select Trailer —</option><option value="customer">Customer Trailer</option></select>
-            <button type="button" class="btn sm primary" onclick="fillTrailerFromEquip()">Fill</button>
-          </div>
+          <label>Trailer</label>
+          <select id="ld-trailer-select" onchange="onTrailerSelectChange()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"><option value="">— Select Trailer —</option><option value="customer">Customer Trailer</option></select>
         </div>
-        <div class="field"><label>Trailer #</label><input type="text" id="ld-trailer" placeholder="Or type manually"></div>
+        <div class="field"><label>Trailer # <span style="font-weight:400;color:var(--text-muted)">(or type manually)</span></label><input type="text" id="ld-trailer" placeholder="Trailer #"></div>
 
         <!-- Customer Trailer Info (shown only when Customer Trailer selected) -->
         <div id="customer-trailer-section" class="field full" style="display:none">
@@ -2272,7 +2269,7 @@ function editLoad(id) {
     svc('ld-ct-year', l.ct_year); svc('ld-ct-make', l.ct_make); svc('ld-ct-model', l.ct_model);
     svc('ld-ct-vin', l.ct_vin); svc('ld-ct-plate', l.ct_plate); svc('ld-ct-axles', l.ct_axles);
   } else {
-    if (trailSel) trailSel.value = '';
+    syncTrailerSelect(l);
     if (ctSection) ctSection.style.display = 'none';
   }
   // Lock form if Completed and user is not admin
@@ -2520,7 +2517,7 @@ function viewLockedLoad(id) {
     sv2('ld-ct-year', l.ct_year); sv2('ld-ct-make', l.ct_make); sv2('ld-ct-model', l.ct_model);
     sv2('ld-ct-vin', l.ct_vin); sv2('ld-ct-plate', l.ct_plate); sv2('ld-ct-axles', l.ct_axles);
   } else {
-    if (trailSel) trailSel.value = '';
+    syncTrailerSelect(l);
     if (ctSection) ctSection.style.display = 'none';
   }
   applyLoadLockState('Completed');
@@ -3916,27 +3913,37 @@ function onTruckManualInput() {
   }
 }
 
+function syncTrailerSelect(l) {
+  const trailSel = document.getElementById('ld-trailer-select');
+  if (!trailSel) return;
+  const t = String((l && l.trailer) || '').trim().toLowerCase();
+  const eq = t ? equipment.find(x => x.type === 'trailer' &&
+    (String(x.unit || '').trim().toLowerCase() === t || String(x.name || '').trim().toLowerCase() === t)) : null;
+  trailSel.value = eq ? eq.id : '';
+}
+
 function onTrailerSelectChange() {
   const sel = document.getElementById('ld-trailer-select');
   const section = document.getElementById('customer-trailer-section');
-  if (!sel || !section) return;
-  section.style.display = sel.value === 'customer' ? '' : 'none';
-  if (sel.value === 'customer') {
-    const el = document.getElementById('ld-trailer');
-    if (el) el.value = 'Customer Trailer';
-  }
-}
-
-function fillTrailerFromEquip() {
-  const sel = document.getElementById('ld-trailer-select');
+  const trailerField = document.getElementById('ld-trailer');
   if (!sel) return;
-  if (sel.value === 'customer') { onTrailerSelectChange(); return; }
-  if (!sel.value) return;
+  // Show the customer-trailer detail block only for a customer trailer
+  if (section) section.style.display = sel.value === 'customer' ? '' : 'none';
+
+  if (sel.value === 'customer') {
+    if (trailerField) trailerField.value = 'Customer Trailer';
+    showToast('Customer trailer selected \u2713');
+    return;
+  }
+  if (!sel.value) { // "— Select Trailer —": clear the trailer #
+    if (trailerField) trailerField.value = '';
+    return;
+  }
+  // Regular equipment trailer: auto-fill the trailer # (no Fill button needed)
   const e = equipment.find(x => x.id == sel.value);
   if (!e) return;
-  const sv = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
-  sv('ld-trailer', e.unit || e.name);
-  showToast('Trailer info filled ✓');
+  if (trailerField) trailerField.value = e.unit || e.name || '';
+  showToast('Trailer selected \u2713');
 }
 
 
