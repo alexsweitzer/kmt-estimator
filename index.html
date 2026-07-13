@@ -190,6 +190,25 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--navy);color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:500;z-index:9999;opacity:0;transition:all 0.25s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+/* CALENDAR */
+.cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.cal-dow div{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);text-align:center;padding:4px 0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-cell{min-height:92px;background:white;border:1px solid var(--border);border-radius:var(--radius);padding:5px;display:flex;flex-direction:column;gap:3px;overflow:hidden}
+.cal-cell.other{background:var(--gray-50);opacity:0.55}
+.cal-cell.today{border-color:var(--accent);border-width:2px;box-shadow:0 0 0 2px rgba(232,160,32,0.12)}
+.cal-daynum{font-size:11px;font-weight:700;color:var(--text-muted);line-height:1}
+.cal-cell.today .cal-daynum{color:var(--accent)}
+.cal-ev{font-size:10px;font-weight:600;padding:2px 5px;border-radius:4px;color:#fff;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.35}
+.cal-ev:hover{filter:brightness(1.08)}
+.cal-more{font-size:9px;color:var(--text-muted);font-weight:600;padding-left:2px}
+.cal-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:var(--gray-50);border:1px solid var(--border)}
+.cal-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+@media(max-width:600px){
+  .cal-cell{min-height:70px;padding:3px}
+  .cal-ev{font-size:9px;padding:1px 4px}
+}
+
 /* STATS */
 .stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:1rem}
 
@@ -260,6 +279,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
   <button class="tab-btn active" id="tab-estimator" onclick="showTab('estimator')">Estimate</button>
   <button class="tab-btn" id="tab-bids" onclick="showTab('bids')">Saved Bids</button>
   <button class="tab-btn" id="tab-loads" onclick="showTab('loads')">Loads</button>
+  <button class="tab-btn" id="tab-calendar" onclick="showTab('calendar')">Calendar</button>
   <button class="tab-btn" id="tab-tracking" onclick="showTab('tracking')">Tracking</button>
   <button class="tab-btn" id="tab-permits" onclick="showTab('permits')">Permits</button>
   <button class="tab-btn" id="tab-equipment" onclick="showTab('equipment')">Equipment</button>
@@ -562,6 +582,28 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
   <div id="trackingList"></div>
 </div>
 
+
+<!-- ══ CALENDAR ══ -->
+<div class="section" id="section-calendar">
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:0.75rem">
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn sm" onclick="calShift(-1)" aria-label="Previous month">‹</button>
+        <div id="calTitle" style="font-size:17px;font-weight:700;color:var(--navy);min-width:170px;text-align:center"></div>
+        <button class="btn sm" onclick="calShift(1)" aria-label="Next month">›</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <button class="btn sm" onclick="calToday()">Today</button>
+        <select id="calDriverFilter" onchange="renderCalendar()" style="padding:6px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+          <option value="">All drivers</option>
+        </select>
+      </div>
+    </div>
+    <div id="calLegend" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.75rem"></div>
+    <div id="calGrid"></div>
+  </div>
+  <div style="height:1rem"></div>
+</div>
 
 <!-- ══ LOADS ══ -->
 <div class="section" id="section-loads">
@@ -2560,6 +2602,178 @@ function showLoadsSubTab(tab) {
 }
 
 // ══════════════════════════════════════════════
+// CALENDAR
+// ══════════════════════════════════════════════
+let calCursor = new Date(); // any date within the displayed month
+
+// Distinct, readable palette. Colors are assigned by the driver's position in the
+// sorted roster of all drivers who have loads, so no two drivers collide.
+const CAL_COLORS = ['#1a6fcc','#1e9e5a','#cc2b2b','#8a5000','#6d28d9','#0891b2','#be185d','#4d7c0f','#c2410c','#334155'];
+let driverColorMap = {};
+function buildDriverColorMap(){
+  const drivers = [...new Set(loads.map(l => (l.driver||'').trim()).filter(Boolean))]
+    .sort((a,b) => a.localeCompare(b));
+  driverColorMap = {};
+  drivers.forEach((d, i) => { driverColorMap[d.toLowerCase()] = CAL_COLORS[i % CAL_COLORS.length]; });
+}
+function driverColor(name){
+  const n = String(name || '').trim().toLowerCase();
+  if (!n) return '#9c9b94'; // unassigned = gray
+  return driverColorMap[n] || '#9c9b94';
+}
+
+function calShift(n){
+  calCursor = new Date(calCursor.getFullYear(), calCursor.getMonth() + n, 1);
+  renderCalendar();
+}
+function calToday(){ calCursor = new Date(); renderCalendar(); }
+
+function ymd(d){
+  const p = n => String(n).padStart(2,'0');
+  return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
+
+function populateCalDriverFilter(){
+  const sel = document.getElementById('calDriverFilter');
+  if (!sel) return;
+  const drivers = [...new Set(loads.map(l => (l.driver||'').trim()).filter(Boolean))].sort();
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All drivers</option>' +
+    drivers.map(d => `<option value="${escAttr(d)}"${d===cur?' selected':''}>${d}</option>`).join('');
+}
+
+function renderCalendar(){
+  const grid = document.getElementById('calGrid');
+  const title = document.getElementById('calTitle');
+  const legend = document.getElementById('calLegend');
+  if (!grid || !title) return;
+
+  const year = calCursor.getFullYear(), month = calCursor.getMonth();
+  title.textContent = calCursor.toLocaleString('en-US', { month:'long', year:'numeric' });
+  if (!Object.keys(driverColorMap).length) buildDriverColorMap();
+
+  const driverFilter = (document.getElementById('calDriverFilter')||{}).value || '';
+
+  // Bucket loads by their trip date
+  const byDate = {};
+  loads.forEach(l => {
+    if (!l.date) return;
+    if (driverFilter && (l.driver||'').trim() !== driverFilter) return;
+    (byDate[l.date] = byDate[l.date] || []).push(l);
+  });
+
+  // Legend: drivers actually appearing this month
+  const first = new Date(year, month, 1);
+  const last = new Date(year, month + 1, 0);
+  const monthDrivers = new Set();
+  Object.keys(byDate).forEach(d => {
+    if (d >= ymd(first) && d <= ymd(last)) byDate[d].forEach(l => monthDrivers.add((l.driver||'').trim() || 'Unassigned'));
+  });
+  if (legend) {
+    legend.innerHTML = monthDrivers.size
+      ? [...monthDrivers].sort().map(d => {
+          const c = d === 'Unassigned' ? '#9c9b94' : driverColor(d);
+          return `<span class="cal-chip"><span class="cal-dot" style="background:${c}"></span>${d}</span>`;
+        }).join('')
+      : '<span style="font-size:12px;color:var(--text-muted)">No loads scheduled this month.</span>';
+  }
+
+  // Build the grid: start on the Sunday on/before the 1st
+  const start = new Date(year, month, 1);
+  start.setDate(start.getDate() - start.getDay());
+  const todayStr = ymd(new Date());
+
+  let html = '<div class="cal-dow">' +
+    ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => `<div>${d}</div>`).join('') +
+    '</div><div class="cal-grid">';
+
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const key = ymd(d);
+    const isOther = d.getMonth() !== month;
+    const isToday = key === todayStr;
+    const items = byDate[key] || [];
+
+    // Show up to 3 events, then "+N more"
+    const shown = items.slice(0, 3);
+    const extra = items.length - shown.length;
+
+    html += `<div class="cal-cell${isOther?' other':''}${isToday?' today':''}">`
+      + `<div class="cal-daynum">${d.getDate()}</div>`
+      + shown.map(l => {
+          const drv = (l.driver||'').trim();
+          const c = drv ? driverColor(drv) : '#9c9b94';
+          const label = [l.customer || 'Load', drv ? ('· ' + drv.split(' ')[0]) : ''].filter(Boolean).join(' ');
+          const tip = [l.customer, drv || 'Unassigned', l.status, (l.pickup_city||'?') + ' → ' + (l.delivery_city||'?')].filter(Boolean).join(' | ');
+          return `<div class="cal-ev" style="background:${c}" title="${escAttr(tip)}" onclick="openCalLoad('${l.id}')">${label}</div>`;
+        }).join('')
+      + (extra > 0 ? `<div class="cal-more" onclick="openCalDay('${key}')" style="cursor:pointer">+${extra} more</div>` : '')
+      + '</div>';
+  }
+  html += '</div>';
+  grid.innerHTML = html;
+}
+
+// Open a load straight from the calendar
+function openCalLoad(id){
+  const l = loads.find(x => x.id == id);
+  if (!l) { showToast('Load not found'); return; }
+  const app = document.getElementById('mainApp');
+  app.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+  app.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById('tab-loads').classList.add('active');
+  document.getElementById('section-loads').classList.add('active');
+  const isAdmin = currentSession && currentSession.role === 'admin';
+  if (l.status === 'Completed' && !isAdmin) viewLockedLoad(id); else editLoad(id);
+  window.scrollTo(0,0);
+}
+
+// Show every load on a given day (used by "+N more")
+function openCalDay(key){
+  const driverFilter = (document.getElementById('calDriverFilter')||{}).value || '';
+  const items = loads.filter(l => l.date === key && (!driverFilter || (l.driver||'').trim() === driverFilter));
+  if (!items.length) return;
+  const pretty = new Date(key + 'T00:00:00').toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.onclick = e => { if (e.target === ov) { ov.remove(); document.body.style.overflow=''; } };
+  ov.innerHTML = `<div class="modal">
+    <div class="modal-header">
+      <div><div class="modal-title">${pretty}</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:2px">${items.length} load${items.length===1?'':'s'} scheduled</div></div>
+      <button class="modal-close" onclick="this.closest('.overlay').remove();document.body.style.overflow=''">✕</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      ${items.map(l => {
+        const drv = (l.driver||'').trim();
+        const c = drv ? driverColor(drv) : '#9c9b94';
+        const bc = (typeof loadStatusBadge !== 'undefined' && loadStatusBadge[l.status]) || 'gray';
+        return `<div class="bid-card" style="cursor:pointer;margin:0" onclick="this.closest('.overlay').remove();document.body.style.overflow='';openCalLoad('${l.id}')">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="cal-dot" style="background:${c};width:11px;height:11px"></span>
+            <div style="flex:1;min-width:0">
+              <div class="bid-card-name">${l.customer || 'No customer'}</div>
+              <div class="bid-card-sub">${drv || 'Unassigned'} · ${(l.pickup_city||'?')} → ${(l.delivery_city||'?')}</div>
+            </div>
+            <span class="badge ${bc}">${l.status || '—'}</span>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  document.body.style.overflow = 'hidden';
+}
+
+async function enterCalendar(){
+  try { loads = await sb('kmt_loads?select=*&order=date.desc'); } catch(e) {}
+  buildDriverColorMap();
+  populateCalDriverFilter();
+  renderCalendar();
+}
+
+// ══════════════════════════════════════════════
 // NAVIGATION
 // ══════════════════════════════════════════════
 
@@ -2972,6 +3186,7 @@ function showTab(name){
     renderOsowRateTable();
   }
   if(name==='loads'){loadLogsFromDB();showLoadsSubTab('list');loadVehiclePositions().then(()=>{ if(document.getElementById('section-loads')&&document.getElementById('section-loads').classList.contains('active')) renderLoadsList(); });}
+  if(name==='calendar'){ enterCalendar(); }
   if(name==='tracking'){ enterTracking(); }
   if(name==='equipment'){loadEquipmentFromDB();}
   if(name==='profile'){
