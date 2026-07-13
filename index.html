@@ -4571,7 +4571,11 @@ async function sendTestNotification(){
   try {
     const res = await fetch(PUSH_FN_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SB_KEY,
+        'apikey': SB_KEY
+      },
       body: JSON.stringify({ kind: 'test', username: currentSession.username })
     });
     const text = await res.text();
@@ -4631,7 +4635,11 @@ function notifyPush(payload){
   try {
     fetch(PUSH_FN_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + SB_KEY,
+        'apikey': SB_KEY
+      },
       body: JSON.stringify(payload)
     }).catch(()=>{});
   } catch(e) {}
