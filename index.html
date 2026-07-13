@@ -4574,10 +4574,22 @@ async function sendTestNotification(){
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kind: 'test', username: currentSession.username })
     });
-    const d = await res.json();
-    if (d.sent > 0) showToast('Test sent \u2014 check your notifications');
-    else showToast('No device registered yet. Tap Enable first.');
-  } catch(e) { showToast('Test failed \u2014 is the push function deployed?'); }
+    const text = await res.text();
+    let d = {};
+    try { d = JSON.parse(text); } catch(e) {}
+
+    if (!res.ok) {
+      alert('Push function error (HTTP ' + res.status + '):\n\n' + text.slice(0, 500));
+      return;
+    }
+    if (d.sent > 0) { showToast('Test sent \u2014 check your notifications'); return; }
+    // Show exactly why nothing sent, instead of guessing
+    alert('Nothing was sent.\n\nFunction replied:\n' + text.slice(0, 500) +
+          '\n\nLooking for username: ' + currentSession.username);
+  } catch(e) {
+    alert('Could not reach the push function.\n\n' + String(e) +
+          '\n\nCheck it is deployed as "push" with Verify JWT turned OFF.');
+  }
 }
 
 async function renderNotifStatus(){
