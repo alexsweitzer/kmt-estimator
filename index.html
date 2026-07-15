@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#1a2744">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <title>KMT Employee Portal — Kentmorr Marine Transport</title>
 <style>
 :root {
@@ -2280,6 +2281,7 @@ function renderLoadsList() {
         <div style="flex-shrink:0;margin-left:12px;text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
           ${l.trip_price ? `<div style="font-size:15px;font-weight:700;color:var(--text)">${fmt(l.trip_price)}</div>` : ''}
           <div style="font-size:13px;font-weight:600;color:var(--text-muted)">${l.miles_total ? l.miles_total + ' mi' : ''}</div>
+          <button class="btn sm" onclick="exportLoadPDF('${l.id}', event)" style="font-size:11px;padding:3px 10px">📄 PDF</button>
           ${isAdmin ? `<button class="btn sm danger" onclick="event.stopPropagation();deleteLoad('${l.id}')" style="font-size:11px;padding:3px 8px">🗑 Delete</button>` : ''}
         </div>
       </div>
@@ -4678,6 +4680,220 @@ function notifyOnLoadSave(data, prev){
     });
   }
 }
+
+// ══════════════════════════════════════════════
+// LOAD LOG → PDF EXPORT
+// ══════════════════════════════════════════════
+async function exportLoadPDF(id, ev){
+  if (ev) ev.stopPropagation();
+  const l = loads.find(x => x.id == id);
+  if (!l) { showToast('Load not found'); return; }
+  if (!window.jspdf || !window.jspdf.jsPDF) { showToast('PDF library still loading — try again in a moment'); return; }
+
+  showToast('Building PDF…');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const PW = 612, PH = 792, M = 40;
+  let y = M;
+  const NAVY = [26, 39, 68], GRAY = [92, 91, 86], LINE = [221, 221, 216];
+  const needSpace = (h) => { if (y + h > PH - M) { doc.addPage(); y = M; } };
+  const fmtMoney = (n) => (n == null || n === '') ? '—' : '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const V = (v) => (v == null || v === '') ? '—' : String(v);
+
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, PW, 70, 'F');
+  if (window.__kmtLogoData) { try { doc.addImage(window.__kmtLogoData, 'PNG', M, 15, 40, 40); } catch(e){} }
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.text('Kentmorr Marine Transport', M + 50, 32);
+  doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(200,208,220);
+  doc.text('Driver Load Log', M + 50, 48);
+  doc.setFontSize(10); doc.setFont('helvetica','bold'); doc.setTextColor(255,255,255);
+  doc.text((l.status || 'In Progress').toUpperCase(), PW - M, 40, { align: 'right' });
+  y = 90;
+
+  doc.setTextColor(...NAVY); doc.setFont('helvetica','bold'); doc.setFontSize(14);
+  doc.text(V(l.customer) + (l.boatname ? '  ·  ' + l.boatname : ''), M, y);
+  y += 16;
+  doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(...GRAY);
+  doc.text([V(l.pickup_city) + ' -> ' + V(l.delivery_city), l.date ? 'Date: ' + l.date : '', l.driver ? 'Driver: ' + l.driver : ''].filter(Boolean).join('     '), M, y);
+  y += 18;
+
+  function sectionHeader(title){
+    needSpace(30);
+    doc.setFillColor(245, 245, 242);
+    doc.rect(M, y, PW - 2*M, 20, 'F');
+    doc.setTextColor(...NAVY); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+    doc.text(title.toUpperCase(), M + 6, y + 14);
+    y += 28;
+  }
+  function kvGrid(pairs){
+    const colW = (PW - 2*M) / 2, rowH = 16;
+    for (let i = 0; i < pairs.length; i += 2){
+      needSpace(rowH);
+      for (let c = 0; c < 2; c++){
+        const pair = pairs[i + c];
+        if (!pair || pair[0] === '') continue;
+        const x = M + c * colW;
+        doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+        doc.text(pair[0].toUpperCase(), x, y);
+        doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(30,30,28);
+        const txt = doc.splitTextToSize(V(pair[1]), colW - 10);
+        doc.text(txt, x, y + 11);
+      }
+      y += rowH + 8;
+    }
+    y += 2;
+  }
+
+  sectionHeader('Job Information');
+  kvGrid([['Date', l.date], ['Status', l.status], ['Trip Price', fmtMoney(l.trip_price)], ['Payment Type', l.payment_type], ['Truck', l.truck], ['Trailer', l.trailer], ['Driver', l.driver], ['Co-Driver', l.codriver], ['Customer', l.customer], ['Contact', l.contact]]);
+
+  sectionHeader('Boat / Cargo');
+  kvGrid([['Make', l.make], ['Model', l.model], ['Boat Name', l.boatname], ['Color', l.color], ['LOA (ft)', l.loa], ['Beam (ft)', l.beam], ['Weight (lbs)', l.weight], ['Height (ft)', l.height], ['Loaded Height (ft)', l.loaded_height], ['Hull ID', l.hullid], ['Reg / Doc #', l.regdoc]]);
+
+  if (l.customer_trailer){
+    sectionHeader('Customer Trailer');
+    kvGrid([['Year', l.ct_year], ['Make', l.ct_make], ['Model', l.ct_model], ['VIN', l.ct_vin], ['Plate', l.ct_plate], ['Axles', l.ct_axles]]);
+  }
+
+  sectionHeader('Route');
+  kvGrid([['Pickup Name', l.pickup_name], ['Delivery Name', l.delivery_name], ['Pickup Street', l.pickup_street], ['Delivery Street', l.delivery_street], ['Pickup City', l.pickup_city], ['Delivery City', l.delivery_city], ['Miles Start', l.miles_start], ['Miles Stop', l.miles_stop], ['Total Miles', l.miles_total]]);
+
+  if (l.fuel_log && l.fuel_log.length){
+    sectionHeader('Fuel Log');
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+    const cols = [['Type', M], ['Total $', M+110], ['Location', M+180], ['Gallons', M+360], ['State', M+440]];
+    needSpace(20);
+    cols.forEach(c => doc.text(c[0].toUpperCase(), c[1], y));
+    y += 12;
+    doc.setDrawColor(...LINE); doc.line(M, y-4, PW-M, y-4);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(30,30,28);
+    l.fuel_log.forEach(f => {
+      needSpace(14);
+      doc.text(V(f.type), M, y);
+      doc.text(f.total != null ? fmtMoney(f.total) : '—', M+110, y);
+      doc.text(V(f.site), M+180, y);
+      doc.text(f.gal != null ? String(f.gal) : '—', M+360, y);
+      doc.text(V(f.state), M+440, y);
+      y += 14;
+    });
+    y += 8;
+  }
+
+  function inspectionBlock(title, data){
+    if (!data || !Object.keys(data).length) return;
+    sectionHeader(title);
+    const colW = (PW - 2*M) / 2;
+    const entries = Object.entries(data);
+    for (let i = 0; i < entries.length; i += 2){
+      needSpace(14);
+      for (let c = 0; c < 2; c++){
+        const e = entries[i+c];
+        if (!e) continue;
+        const x = M + c * colW;
+        const [item, val] = e;
+        const mark = val === 'ok' ? 'OK' : val === 'no' ? 'DEFECT' : '—';
+        doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(30,30,28);
+        doc.text(item, x, y);
+        doc.setFont('helvetica','bold');
+        if (val === 'ok') doc.setTextColor(30,158,90);
+        else if (val === 'no') doc.setTextColor(204,43,43);
+        else doc.setTextColor(...GRAY);
+        doc.text(mark, x + colW - 60, y);
+      }
+      y += 14;
+    }
+    y += 6;
+  }
+  inspectionBlock('Truck Inspection', l.truck_inspection);
+  inspectionBlock('Trailer Inspection', l.trailer_inspection);
+
+  needSpace(40);
+  sectionHeader('Condition & Notes');
+  kvGrid([['Vehicle Satisfactory', l.vehicle_satisfactory ? 'Yes' : 'No'], ['Defect Status', l.defect_status]]);
+  if (l.damage_areas && l.damage_areas.length){
+    needSpace(24);
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+    doc.text('DAMAGE AREAS NOTED', M, y); y += 12;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(30,30,28);
+    const dm = doc.splitTextToSize(l.damage_areas.join(', '), PW - 2*M);
+    doc.text(dm, M, y); y += dm.length * 12 + 6;
+  }
+  function longText(label, val){
+    if (!val) return;
+    needSpace(30);
+    doc.setFont('helvetica','bold'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+    doc.text(label.toUpperCase(), M, y); y += 12;
+    doc.setFont('helvetica','normal'); doc.setFontSize(10); doc.setTextColor(30,30,28);
+    const t = doc.splitTextToSize(val, PW - 2*M);
+    t.forEach(line => { needSpace(13); doc.text(line, M, y); y += 13; });
+    y += 6;
+  }
+  longText('Damage Notes', l.damage_notes);
+  longText('General Notes', l.notes);
+
+  sectionHeader('Signatures');
+  kvGrid([['Driver Signature', l.sig_driver], ['Mechanic Signature', l.sig_mechanic]]);
+
+  async function fetchImg(url){
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      return await new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = reject;
+        r.readAsDataURL(blob);
+      });
+    } catch(e){ return null; }
+  }
+  async function photoSection(title, urls){
+    if (!urls || !urls.length) return;
+    sectionHeader(title);
+    const cellW = (PW - 2*M - 20) / 2;
+    const cellH = cellW * 0.7;
+    let col = 0;
+    for (const url of urls){
+      const data = await fetchImg(url);
+      needSpace(cellH + 12);
+      const x = M + col * (cellW + 20);
+      if (data){
+        try { doc.addImage(data, 'JPEG', x, y, cellW, cellH); }
+        catch(e){ try { doc.addImage(data, 'PNG', x, y, cellW, cellH); } catch(e2){ doc.setFontSize(8); doc.setTextColor(...GRAY); doc.text('[photo could not be embedded]', x, y + 20); } }
+      } else {
+        doc.setDrawColor(...LINE); doc.rect(x, y, cellW, cellH);
+        doc.setFontSize(8); doc.setTextColor(...GRAY); doc.text('[photo unavailable]', x + 8, y + 20);
+      }
+      col++;
+      if (col === 2){ col = 0; y += cellH + 12; }
+    }
+    if (col === 1) y += cellH + 12;
+    y += 4;
+  }
+  await photoSection('Pre-Trip Photos', l.pretrip_photos);
+  await photoSection('Post-Trip Photos', l.posttrip_photos);
+
+  const pages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= pages; i++){
+    doc.setPage(i);
+    doc.setDrawColor(...LINE); doc.line(M, PH - 28, PW - M, PH - 28);
+    doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+    doc.text('Kentmorr Marine Transport · Generated ' + new Date().toLocaleString(), M, PH - 16);
+    doc.text('Page ' + i + ' of ' + pages, PW - M, PH - 16, { align: 'right' });
+  }
+
+  const safe = (s) => String(s || '').replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+  const fname = ['LoadLog', safe(l.customer), safe(l.date || ''), safe(l.boatname)].filter(Boolean).join('_') + '.pdf';
+  doc.save(fname);
+  showToast('PDF downloaded ✓');
+}
+(function cacheKmtLogo(){
+  try {
+    const img = document.querySelector('img[src^="data:image/png"]');
+    if (img && img.src) window.__kmtLogoData = img.src;
+  } catch(e){}
+})();
 
 // ══════════════════════════════════════════════
 // PHONE FORMATTING
