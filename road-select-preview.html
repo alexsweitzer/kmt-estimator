@@ -206,7 +206,8 @@ async function onView(){
         const w2=await callFn({mode:'ways',bbox:bbox});   // refresh what we can now show
         if(seq===viewSeq)(w2.ways||[]).forEach(addWay);
       }catch(err){
-        hint('<b>Road servers busy while building this area</b> — pan slightly or wait a moment to retry. Loaded roads stay clickable.','err');
+        hint('<b>Area build failed:</b> '+esc(String(err.message||err).slice(0,220))
+          +'<span style="display:block;margin-top:3px;color:var(--text-muted)">Pan slightly or wait a moment to retry. Loaded roads stay clickable.</span>','err');
         break;
       }
     }
