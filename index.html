@@ -298,6 +298,69 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 
 <!-- ══ ESTIMATOR ══ -->
 <div class="section active" id="section-estimator">
+  <!-- Land / Sea mode toggle -->
+  <div style="display:flex;gap:8px;margin-bottom:0.9rem">
+    <button class="btn primary" id="est-mode-land" onclick="setEstMode('land')" style="flex:1;font-size:14px;padding:10px">🚚 By Land</button>
+    <button class="btn" id="est-mode-sea" onclick="setEstMode('sea')" style="flex:1;font-size:14px;padding:10px">⛵ By Sea</button>
+  </div>
+
+  <!-- ══ SEA (TOW BOAT) ESTIMATOR ══ -->
+  <div id="sea-estimator" style="display:none">
+    <div class="card">
+      <div class="card-title">Tow Boat &amp; Route</div>
+      <div class="form-grid">
+        <div class="field"><label>Tow Boat</label>
+          <select id="sea-vessel" onchange="calcSea()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"></select>
+        </div>
+        <div class="field"><label>Trip Rate ($/nm)</label>
+          <select id="sea-rate" onchange="calcSea()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+            <option>16</option><option>18</option><option>20</option><option>22</option><option>24</option><option>26</option><option selected>28</option>
+          </select>
+        </div>
+        <div class="field"><label>Deadhead Out (nm)</label><input type="number" step="0.1" id="sea-dh-out" placeholder="0" oninput="calcSea()"></div>
+        <div class="field"><label>Deadhead Back (nm)</label><input type="number" step="0.1" id="sea-dh-back" placeholder="0" oninput="calcSea()"></div>
+        <div class="field"><label>Trip (nm)</label><input type="number" step="0.1" id="sea-trip" placeholder="0" oninput="calcSea()"></div>
+        <div class="field"><label>Pickup / Hookup Time (hrs)</label><input type="number" step="0.25" id="sea-pickup-hrs" placeholder="0" oninput="calcSea()"></div>
+        <div class="field"><label>Delivery Time (hrs)</label><input type="number" step="0.25" id="sea-delivery-hrs" placeholder="0" oninput="calcSea()"></div>
+        <div class="field"><label>Customer</label><input type="text" id="sea-customer" placeholder="Customer name"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Estimate</div>
+      <div class="form-grid">
+        <div class="field"><label>Deadhead Fee</label><input type="text" id="sea-out-deadhead" readonly style="background:var(--gray-50)"></div>
+        <div class="field"><label>Trip</label><input type="text" id="sea-out-trip" readonly style="background:var(--gray-50)"></div>
+        <div class="field"><label>Mob &amp; Demob</label><input type="text" id="sea-out-mobdemob" readonly style="background:var(--gray-50)"></div>
+        <div class="field"><label id="sea-out-fee-label">Estimated Trip Fee</label><input type="text" id="sea-out-fee" readonly style="background:#eef6ee;font-weight:700"></div>
+        <div class="field"><label>Est. Fuel Burn (gal)</label><input type="text" id="sea-out-burn" readonly style="background:var(--gray-50)"></div>
+        <div class="field"><label>Fuel Cost</label><input type="text" id="sea-out-fuel" readonly style="background:var(--gray-50)"></div>
+        <div class="field"><label>Estimated Trip Time</label><input type="text" id="sea-out-time" readonly style="background:var(--gray-50)"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Profit Breakdown</div>
+      <div class="form-grid">
+        <div class="field full"><label>Final Trip Fee ($) <span style="font-weight:400;color:var(--text-muted)">(defaults to estimate — adjust if negotiated)</span></label><input type="number" step="0.01" id="sea-final-fee" oninput="seaFeeTouched=true;calcSea()"></div>
+        <div class="field"><label>Captain Pay (⅓)</label><input type="text" id="sea-out-captain" readonly style="background:var(--gray-50)"></div>
+        <div class="field"><label>Vessel Pay (⅓)</label><input type="text" id="sea-out-vessel" readonly style="background:var(--gray-50)"></div>
+        <div class="field"><label>Fuel</label><input type="text" id="sea-out-fuel2" readonly style="background:var(--gray-50)"></div>
+        <div class="field"><label>Gross Profit</label><input type="text" id="sea-out-profit" readonly style="background:#eef6ee;font-weight:700"></div>
+        <div class="field"><label>Gross Trip Rate ($/nm)</label><input type="text" id="sea-out-grossrate" readonly style="background:var(--gray-50)"></div>
+      </div>
+      <div class="btn-row" style="margin-top:0.75rem">
+        <button class="btn primary" onclick="saveSeaBid()">💾 Save Sea Bid</button>
+        <button class="btn" onclick="clearSeaForm()">↺ Clear</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Notes</div>
+      <textarea id="sea-notes" rows="3" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit" placeholder="Conditions, bridge openings, tide windows, overnight stays…"></textarea>
+    </div>
+  </div>
+
+  <div id="land-estimator">
   <div class="card">
     <div class="card-title">Job Details</div>
     <div class="form-grid">
@@ -435,6 +498,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <button class="btn" onclick="clearForm()">↺ Clear</button>
   </div>
   <div style="height:1rem"></div>
+  </div><!-- /land-estimator -->
 </div>
 
 <!-- ══ BIDS ══ -->
@@ -454,6 +518,50 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 <!-- ══ RATES ══ -->
 <div class="section" id="section-rates">
   <div style="margin-bottom:0.75rem"><button class="btn sm" onclick="showTab('admin')">← Back to Admin</button></div>
+  <div style="display:flex;gap:8px;margin-bottom:0.9rem">
+    <button class="btn primary" id="rates-mode-land" onclick="setRatesMode('land')" style="flex:1;font-size:14px;padding:10px">🚚 Trucking</button>
+    <button class="btn" id="rates-mode-sea" onclick="setRatesMode('sea')" style="flex:1;font-size:14px;padding:10px">⛵ Boat</button>
+  </div>
+
+  <!-- ══ BOAT (SEA) RATES ══ -->
+  <div id="rates-sea" style="display:none">
+    <div class="card">
+      <div class="card-title">Towing Fees</div>
+      <div class="form-grid">
+        <div class="field"><label>Load / Hookup Fee ($/hr)</label><input type="number" step="1" id="sr_loadFee" oninput="saveSeaRates()"></div>
+        <div class="field"><label>Unload / Delivery Fee ($/hr)</label><input type="number" step="1" id="sr_unloadFee" oninput="saveSeaRates()"></div>
+        <div class="field"><label>Overnight Fee ($)</label><input type="number" step="1" id="sr_overnight" oninput="saveSeaRates()"></div>
+        <div class="field"><label>Deadhead Rate ($/nm)</label><input type="number" step="0.5" id="sr_deadhead" oninput="saveSeaRates()"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Pay Splits (fraction of trip fee)</div>
+      <div class="form-grid">
+        <div class="field"><label>Captain Pay Rate</label><input type="number" step="0.0001" id="sr_captainPct" oninput="saveSeaRates()"></div>
+        <div class="field"><label>Vessel Pay Rate</label><input type="number" step="0.0001" id="sr_vesselPct" oninput="saveSeaRates()"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Fuel Prices ($/gal)</div>
+      <div class="form-grid">
+        <div class="field"><label>Diesel</label><input type="number" step="0.01" id="sr_dieselPrice" oninput="saveSeaRates()"></div>
+        <div class="field"><label>Gas</label><input type="number" step="0.01" id="sr_gasPrice" oninput="saveSeaRates()"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Tow Boats</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.75rem">Speeds and burn rates drive fuel and trip-time estimates. Edits save automatically.</p>
+      <div style="overflow-x:auto">
+        <table class="rate-table">
+          <thead><tr><th>Boat</th><th>Cruise (kn)</th><th>Towing (kn)</th><th>Cruise (gal/nm)</th><th>Towing (gal/nm)</th><th>Fuel</th><th></th></tr></thead>
+          <tbody id="seaBoatsBody"></tbody>
+        </table>
+      </div>
+      <div class="btn-row" style="margin-top:0.6rem"><button class="btn sm" onclick="addSeaBoat()">+ Add Boat</button></div>
+    </div>
+  </div>
+
+  <div id="rates-land">
   <div class="card">
     <div class="card-title">Fuel Settings</div>
     <div class="form-grid">
@@ -500,6 +608,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     </div>
   </div>
   <p style="font-size:12px;color:var(--text-muted);padding:0 0 1rem">Rate changes sync to all devices automatically.</p>
+  </div><!-- /rates-land -->
 </div>
 
 <!-- ══ ADMIN ══ -->
@@ -656,7 +765,15 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <div class="card">
       <div class="card-title">Drivers Log — Job Information</div>
       <div class="form-grid">
-        <div class="field"><label>Date</label><input type="date" id="ld-date"></div>
+        <div class="field"><label>Start Date</label><input type="date" id="ld-date"></div>
+        <div class="field"><label>End Date <span style="font-weight:400;color:var(--text-muted)">(multi-day trips)</span></label><input type="date" id="ld-date-end"></div>
+        <div class="field">
+          <label>Transport</label>
+          <select id="ld-mode" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+            <option value="land">🚚 By Land</option>
+            <option value="sea">⛵ By Sea</option>
+          </select>
+        </div>
         <div class="field"><label>Trip Price ($)</label><input type="number" step="0.01" id="ld-trip-price" placeholder="0.00"></div>
         <div class="field">
           <label>Payment Type</label>
@@ -1427,12 +1544,24 @@ function bootApp(){
 // RATES
 // ══════════════════════════════════════════════
 let rates=defaultRates();
+function seaDefaultRates(){
+  // Self-contained (runs before SEA_DEFAULTS is declared): values from KMT_TOW_BOAT_Quotes.xlsx
+  return {
+    loadFeePerHr: 200, unloadFeePerHr: 200, overnightFee: 300, deadheadPerNm: 13,
+    captainPct: 1/3, vesselPct: 1/3,
+    fuelPrice: { Diesel: 3.90, Gas: 5.02 },
+    vessels: [
+      { name: "40' Bestway Labelle",  cruiseKn: 6,  towKn: 6, cruiseGPNM: 2/3,  towGPNM: 1,   fuel: 'Diesel' },
+      { name: "25' Safeboat Defender", cruiseKn: 25, towKn: 6, cruiseGPNM: 0.16, towGPNM: 1.5, fuel: 'Gas' },
+    ],
+  };
+}
 function defaultRates(){
-  return {dieselPrice:5.5,mpgLoaded:5.0,mpgEmpty:8.0,fuelSurchargeRate:1.375,fuelSurchargeWeight:20000,loadFee:125,unloadFee:125,overnightFee:200,deadheadRate:1.0,pilotRate:3.0,pilotBeamThreshold:12.5,trailerDiscount:0.20,permitFee:45.00,driverPay:0.25,driverPayPilot:0.25,maint:0.15,ins:0.16,truck:0.09,km:0.15,sms:0.05,osowOverrides:{}};
+  return {dieselPrice:5.5,mpgLoaded:5.0,mpgEmpty:8.0,fuelSurchargeRate:1.375,fuelSurchargeWeight:20000,loadFee:125,unloadFee:125,overnightFee:200,deadheadRate:1.0,pilotRate:3.0,pilotBeamThreshold:12.5,trailerDiscount:0.20,permitFee:45.00,driverPay:0.25,driverPayPilot:0.25,maint:0.15,ins:0.16,truck:0.09,km:0.15,sms:0.05,osowOverrides:{},sea:seaDefaultRates()};
 }
 async function loadRatesFromDB(){
-  try{const rows=await sb('kmt_rates?select=*&limit=1');if(rows.length){rates={...defaultRates(),...rows[0].data};if(!rates.osowOverrides)rates.osowOverrides={};}}catch(e){}
-  applyRatesToUI();syncChk();calculate();renderOsowRateTable();
+  try{const rows=await sb('kmt_rates?select=*&limit=1');if(rows.length){rates={...defaultRates(),...rows[0].data};if(!rates.osowOverrides)rates.osowOverrides={};if(!rates.sea)rates.sea=seaDefaultRates();}}catch(e){}
+  applyRatesToUI();applySeaRatesToUI();populateSeaVessels();syncChk();calculate();renderOsowRateTable();
 }
 function applyRatesToUI(){
   const r=rates, set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
@@ -1449,7 +1578,8 @@ let ratesSaveTimer=null;
 function saveRates(){
   const f=id=>parseFloat(document.getElementById(id).value)||0;
   const prevOverrides=rates.osowOverrides||{};
-  rates={dieselPrice:f('r_dieselPrice'),mpgLoaded:f('r_mpgLoaded'),mpgEmpty:f('r_mpgEmpty'),fuelSurchargeRate:f('r_fuelSurchargeRate'),fuelSurchargeWeight:f('r_fuelSurchargeWeight'),loadFee:f('r_loadFee'),unloadFee:f('r_unloadFee'),overnightFee:f('r_overnightFee'),deadheadRate:f('r_deadheadRate'),pilotRate:f('r_pilotRate'),pilotBeamThreshold:f('r_pilotBeamThreshold'),trailerDiscount:f('r_trailerDiscount'),permitFee:f('r_permitFee')||45,driverPay:f('r_driverPay'),driverPayPilot:f('r_driverPayPilot'),maint:f('r_maint'),ins:f('r_ins'),truck:f('r_truck'),km:f('r_km'),sms:f('r_sms'),osowOverrides:prevOverrides};
+  const prevSea=rates.sea||seaDefaultRates();
+  rates={dieselPrice:f('r_dieselPrice'),mpgLoaded:f('r_mpgLoaded'),mpgEmpty:f('r_mpgEmpty'),fuelSurchargeRate:f('r_fuelSurchargeRate'),fuelSurchargeWeight:f('r_fuelSurchargeWeight'),loadFee:f('r_loadFee'),unloadFee:f('r_unloadFee'),overnightFee:f('r_overnightFee'),deadheadRate:f('r_deadheadRate'),pilotRate:f('r_pilotRate'),pilotBeamThreshold:f('r_pilotBeamThreshold'),trailerDiscount:f('r_trailerDiscount'),permitFee:f('r_permitFee')||45,driverPay:f('r_driverPay'),driverPayPilot:f('r_driverPayPilot'),maint:f('r_maint'),ins:f('r_ins'),truck:f('r_truck'),km:f('r_km'),sms:f('r_sms'),osowOverrides:prevOverrides,sea:prevSea};
   const ll=document.getElementById('lbl-load');if(ll)ll.textContent=rates.loadFee;
   const lu=document.getElementById('lbl-unload');if(lu)lu.textContent=rates.unloadFee;
   calculate();
@@ -1747,7 +1877,7 @@ function renderBids(){
     return `<div class="bid-card" onclick="viewBid('${b.id}')">
       <div class="bid-card-top">
         <div style="flex:1;min-width:0">
-          <div class="bid-card-name">${b.customer||'Unnamed'}</div>
+          <div class="bid-card-name">${b.transport_mode==='sea' ? '⛵ ' : ''}${b.customer||'Unnamed'}</div>
           <div class="bid-card-sub">${[b.boat_year,b.boat_make,b.boat_model].filter(Boolean).join(' ')||b.boat||'—'} · ${b.pickup||'?'} → ${b.drop_location||'?'}</div>
           <div class="bid-card-sub" style="margin-top:1px">${b.trip_miles||0} mi · ${b.bid_date||'No date'}</div>
         </div>
@@ -2148,6 +2278,8 @@ function getLoadFormData() {
   const txt = (id) => document.getElementById(id)?.value || null;
   return {
     date: document.getElementById('ld-date').value || null,
+    date_end: document.getElementById('ld-date-end') ? (document.getElementById('ld-date-end').value || null) : null,
+    transport_mode: (document.getElementById('ld-mode') && document.getElementById('ld-mode').value) || 'land',
     trip_price: num('ld-trip-price'),
     payment_type: txt('ld-payment-type'),
     truck: txt('ld-truck'),
@@ -2326,6 +2458,7 @@ function renderLoadsList() {
       </div>
       <div class="bid-card-meta">
         <span class="badge ${bc}">${l.status || 'In Progress'}</span>
+        ${l.transport_mode === 'sea' ? `<span class="badge blue">⛵ By Sea</span>` : ''}
         ${l.payment_type ? `<span class="badge ${l.payment_type === 'COD' ? 'green' : 'blue'}">${l.payment_type === 'COD' ? '💵 COD' : '🧾 Invoiced'}</span>` : ''}
         ${pinBadge}
         ${shareBtn}
@@ -2355,7 +2488,7 @@ function editLoad(id) {
   showLoadsSubTab('new');
   // Restore all fields
   const sv = (i, v) => { const el = document.getElementById(i); if (el) el.value = v || ''; };
-  sv('ld-date', l.date); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
+  sv('ld-date', l.date); sv('ld-date-end', l.date_end); (function(){const m=document.getElementById('ld-mode'); if(m) m.value=l.transport_mode||'land';})(); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
   setDriverSelect('ld-driver', l.driver); setDriverSelect('ld-codriver', l.codriver); sv('ld-status', l.status);
   sv('ld-customer', l.customer); sv('ld-contact', l.contact); applyPhoneFormat('ld-contact');
   sv('ld-make', l.make); sv('ld-model', l.model); sv('ld-loa', l.loa); sv('ld-beam', l.beam);
@@ -2432,13 +2565,14 @@ function applyLoadLockState(status) {
 
 function clearLoadForm() {
   loadEditId = null;
-  ['ld-date','ld-trip-price','ld-payment-type','ld-truck','ld-trailer','ld-driver','ld-codriver','ld-customer','ld-contact','ld-ct-year','ld-ct-make','ld-ct-model','ld-ct-vin','ld-ct-plate','ld-ct-axles',
+  ['ld-date','ld-date-end','ld-trip-price','ld-payment-type','ld-truck','ld-trailer','ld-driver','ld-codriver','ld-customer','ld-contact','ld-ct-year','ld-ct-make','ld-ct-model','ld-ct-vin','ld-ct-plate','ld-ct-axles',
    'ld-make','ld-model','ld-loa','ld-beam','ld-color','ld-boatname','ld-weight','ld-height',
    'ld-hullid','ld-regdoc','ld-loadedheight','ld-pickup-name','ld-pickup-street','ld-pickup-city',
    'ld-delivery-name','ld-delivery-street','ld-delivery-city','ld-miles-start','ld-miles-stop',
    'ld-miles-total','ld-notes','ld-damage-notes','ld-defect-status','ld-sig-driver','ld-sig-mechanic'
   ].forEach(id => { const el = document.getElementById(id); syncAllFtIn(); if (el) el.value = ''; });
   document.getElementById('ld-status').value = 'In Progress';
+  const modeSel = document.getElementById('ld-mode'); if (modeSel) modeSel.value = 'land';
   document.getElementById('ld-vehicle-satisfactory').checked = false;
   const trailSel = document.getElementById('ld-trailer-select'); if(trailSel) trailSel.value='';
   const ctSec = document.getElementById('customer-trailer-section'); if(ctSec) ctSec.style.display='none';
@@ -2474,6 +2608,8 @@ function prefillFromBid() {
   const b = bids.find(x => x.id == sel.value);
   if (!b) return;
   const sv = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  // Carry the transport mode from the bid
+  (function(){ const ms = document.getElementById('ld-mode'); if (ms) ms.value = b.transport_mode === 'sea' ? 'sea' : 'land'; })();
   // Customer
   sv('ld-customer', b.customer);
   // Boat / load info
@@ -2604,7 +2740,7 @@ function viewLockedLoad(id) {
   const l = loads.find(x => x.id == id);
   if (!l) return;
   const sv = (i, v) => { const el = document.getElementById(i); if (el) el.value = v || ''; };
-  sv('ld-date', l.date); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
+  sv('ld-date', l.date); sv('ld-date-end', l.date_end); (function(){const m=document.getElementById('ld-mode'); if(m) m.value=l.transport_mode||'land';})(); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
   setDriverSelect('ld-driver', l.driver); setDriverSelect('ld-codriver', l.codriver); sv('ld-status', l.status);
   sv('ld-customer', l.customer); sv('ld-contact', l.contact); applyPhoneFormat('ld-contact');
   sv('ld-make', l.make); sv('ld-model', l.model); sv('ld-loa', l.loa); sv('ld-beam', l.beam);
@@ -2734,7 +2870,17 @@ function renderCalendar(){
   loads.forEach(l => {
     if (!l.date) return;
     if (driverFilter && (l.driver||'').trim() !== driverFilter) return;
-    (byDate[l.date] = byDate[l.date] || []).push(l);
+    // Multi-day trips occupy every day from start through end (capped for safety)
+    let end = l.date_end && l.date_end > l.date ? l.date_end : l.date;
+    const cur = new Date(l.date + 'T00:00:00');
+    const stop = new Date(end + 'T00:00:00');
+    let guard = 0;
+    while (cur <= stop && guard < 60) {
+      const k = ymd(cur);
+      (byDate[k] = byDate[k] || []).push(l);
+      cur.setDate(cur.getDate() + 1);
+      guard++;
+    }
   });
 
   // Legend: drivers actually appearing this month
@@ -2779,9 +2925,13 @@ function renderCalendar(){
       + shown.map(l => {
           const drv = (l.driver||'').trim();
           const c = drv ? driverColor(drv) : '#9c9b94';
-          const label = [l.customer || 'Load', drv ? ('· ' + drv.split(' ')[0]) : ''].filter(Boolean).join(' ');
-          const tip = [l.customer, drv || 'Unassigned', l.status, (l.pickup_city||'?') + ' → ' + (l.delivery_city||'?')].filter(Boolean).join(' | ');
-          return `<div class="cal-ev" style="background:${c}" title="${escAttr(tip)}" onclick="openCalLoad('${l.id}')">${label}</div>`;
+          const icon = l.transport_mode === 'sea' ? '⛵' : '🚚';
+          const multi = l.date_end && l.date_end > l.date;
+          const isStart = key === l.date;
+          const label = icon + ' ' + [l.customer || 'Load', drv ? ('· ' + drv.split(' ')[0]) : ''].filter(Boolean).join(' ') + (multi && !isStart ? ' ↔' : '');
+          const dateBit = multi ? (l.date + ' → ' + l.date_end) : l.date;
+          const tip = [l.customer, drv || 'Unassigned', l.status, dateBit, (l.pickup_city||'?') + ' → ' + (l.delivery_city||'?')].filter(Boolean).join(' | ');
+          return `<div class="cal-ev" style="background:${c}${multi && !isStart ? ';opacity:.75' : ''}" title="${escAttr(tip)}" onclick="openCalLoad('${l.id}')">${label}</div>`;
         }).join('')
       + (extra > 0 ? `<div class="cal-more" onclick="openCalDay('${key}')" style="cursor:pointer">+${extra} more</div>` : '')
       + '</div>';
@@ -2807,7 +2957,12 @@ function openCalLoad(id){
 // Show every load on a given day (used by "+N more")
 function openCalDay(key){
   const driverFilter = (document.getElementById('calDriverFilter')||{}).value || '';
-  const items = loads.filter(l => l.date === key && (!driverFilter || (l.driver||'').trim() === driverFilter));
+  const items = loads.filter(l => {
+    if (!l.date) return false;
+    if (driverFilter && (l.driver||'').trim() !== driverFilter) return false;
+    const end = l.date_end && l.date_end > l.date ? l.date_end : l.date;
+    return key >= l.date && key <= end;
+  });
   if (!items.length) return;
   const pretty = new Date(key + 'T00:00:00').toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
   const ov = document.createElement('div');
@@ -2824,12 +2979,14 @@ function openCalDay(key){
         const drv = (l.driver||'').trim();
         const c = drv ? driverColor(drv) : '#9c9b94';
         const bc = (typeof loadStatusBadge !== 'undefined' && loadStatusBadge[l.status]) || 'gray';
+        const icon = l.transport_mode === 'sea' ? '⛵' : '🚚';
+        const rangeBit = (l.date_end && l.date_end > l.date) ? (l.date + ' → ' + l.date_end + ' · ') : '';
         return `<div class="bid-card" style="cursor:pointer;margin:0" onclick="this.closest('.overlay').remove();document.body.style.overflow='';openCalLoad('${l.id}')">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="cal-dot" style="background:${c};width:11px;height:11px"></span>
             <div style="flex:1;min-width:0">
-              <div class="bid-card-name">${l.customer || 'No customer'}</div>
-              <div class="bid-card-sub">${drv || 'Unassigned'} · ${(l.pickup_city||'?')} → ${(l.delivery_city||'?')}</div>
+              <div class="bid-card-name">${icon} ${l.customer || 'No customer'}</div>
+              <div class="bid-card-sub">${rangeBit}${drv || 'Unassigned'} · ${(l.pickup_city||'?')} → ${(l.delivery_city||'?')}</div>
             </div>
             <span class="badge ${bc}">${l.status || '—'}</span>
           </div>
@@ -4796,7 +4953,7 @@ async function exportLoadPDF(id, ev){
   }
 
   sectionHeader('Job Information');
-  kvGrid([['Date', l.date], ['Status', l.status], ['Trip Price', fmtMoney(l.trip_price)], ['Payment Type', l.payment_type], ['Truck', l.truck], ['Trailer', l.trailer], ['Driver', l.driver], ['Co-Driver', l.codriver], ['Customer', l.customer], ['Contact', l.contact]]);
+  kvGrid([['Date', l.date_end && l.date_end !== l.date ? (l.date + '  →  ' + l.date_end) : l.date], ['Status', l.status], ['Transport', l.transport_mode === 'sea' ? 'By Sea' : 'By Land'], ['', ''], ['Trip Price', fmtMoney(l.trip_price)], ['Payment Type', l.payment_type], ['Truck', l.truck], ['Trailer', l.trailer], ['Driver', l.driver], ['Co-Driver', l.codriver], ['Customer', l.customer], ['Contact', l.contact]]);
 
   sectionHeader('Boat / Cargo');
   kvGrid([['Make', l.make], ['Model', l.model], ['Boat Name', l.boatname], ['Color', l.color], ['LOA', fmtFtIn(l.loa) || l.loa], ['Beam', fmtFtIn(l.beam) || l.beam], ['Weight (lbs)', l.weight], ['Height', fmtFtIn(l.height) || l.height], ['Loaded Height', fmtFtIn(l.loaded_height) || l.loaded_height], ['Hull ID', l.hullid], ['Reg / Doc #', l.regdoc]]);
@@ -5321,6 +5478,229 @@ async function deleteRoute(id){
     renderRoutes();
     showToast('Route deleted');
   } catch(e){ showToast('Delete failed'); }
+}
+
+// ── Sea (boat) rates editor ──
+function setRatesMode(m){
+  const sea = m === 'sea';
+  const se = document.getElementById('rates-sea'), la = document.getElementById('rates-land');
+  if (se) se.style.display = sea ? '' : 'none';
+  if (la) la.style.display = sea ? 'none' : '';
+  const bl = document.getElementById('rates-mode-land'), bs = document.getElementById('rates-mode-sea');
+  if (bl) bl.className = sea ? 'btn' : 'btn primary';
+  if (bs) bs.className = sea ? 'btn primary' : 'btn';
+  if (sea) applySeaRatesToUI();
+}
+
+function applySeaRatesToUI(){
+  const s = (rates && rates.sea) ? rates.sea : seaDefaultRates();
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  set('sr_loadFee', s.loadFeePerHr); set('sr_unloadFee', s.unloadFeePerHr);
+  set('sr_overnight', s.overnightFee); set('sr_deadhead', s.deadheadPerNm);
+  set('sr_captainPct', s.captainPct); set('sr_vesselPct', s.vesselPct);
+  set('sr_dieselPrice', (s.fuelPrice||{}).Diesel); set('sr_gasPrice', (s.fuelPrice||{}).Gas);
+  renderSeaBoats(s.vessels || []);
+}
+
+function renderSeaBoats(vessels){
+  const body = document.getElementById('seaBoatsBody');
+  if (!body) return;
+  body.innerHTML = vessels.map((v,i)=>`<tr>
+    <td><input type="text" value="${escAttr(v.name||'')}" data-i="${i}" data-k="name" oninput="saveSeaRates()" style="min-width:160px"></td>
+    <td><input type="number" step="0.1" value="${v.cruiseKn??''}" data-i="${i}" data-k="cruiseKn" oninput="saveSeaRates()" style="width:80px"></td>
+    <td><input type="number" step="0.1" value="${v.towKn??''}" data-i="${i}" data-k="towKn" oninput="saveSeaRates()" style="width:80px"></td>
+    <td><input type="number" step="0.01" value="${v.cruiseGPNM!=null?+Number(v.cruiseGPNM).toFixed(4):''}" data-i="${i}" data-k="cruiseGPNM" oninput="saveSeaRates()" style="width:90px"></td>
+    <td><input type="number" step="0.01" value="${v.towGPNM!=null?+Number(v.towGPNM).toFixed(4):''}" data-i="${i}" data-k="towGPNM" oninput="saveSeaRates()" style="width:90px"></td>
+    <td><select data-i="${i}" data-k="fuel" onchange="saveSeaRates()" style="padding:6px"><option${v.fuel==='Diesel'?' selected':''}>Diesel</option><option${v.fuel==='Gas'?' selected':''}>Gas</option></select></td>
+    <td><button class="btn sm danger" onclick="removeSeaBoat(${i})" style="padding:3px 8px">✕</button></td>
+  </tr>`).join('');
+}
+
+function readSeaBoats(){
+  const body = document.getElementById('seaBoatsBody');
+  if (!body) return (rates && rates.sea && rates.sea.vessels) || [];
+  const rows = {};
+  body.querySelectorAll('[data-i]').forEach(el => {
+    const i = el.getAttribute('data-i'), k = el.getAttribute('data-k');
+    rows[i] = rows[i] || {};
+    rows[i][k] = (k === 'name' || k === 'fuel') ? el.value : (parseFloat(el.value) || 0);
+  });
+  return Object.keys(rows).sort((a,b)=>a-b).map(i => rows[i]).filter(v => (v.name||'').trim());
+}
+
+let seaRatesSaveGuard=false;
+function saveSeaRates(){
+  if (seaRatesSaveGuard) return;
+  const f = id => parseFloat((document.getElementById(id)||{}).value) || 0;
+  if (!rates.sea) rates.sea = seaDefaultRates();
+  rates.sea = {
+    loadFeePerHr: f('sr_loadFee'), unloadFeePerHr: f('sr_unloadFee'),
+    overnightFee: f('sr_overnight'), deadheadPerNm: f('sr_deadhead'),
+    captainPct: f('sr_captainPct'), vesselPct: f('sr_vesselPct'),
+    fuelPrice: { Diesel: f('sr_dieselPrice'), Gas: f('sr_gasPrice') },
+    vessels: readSeaBoats(),
+  };
+  populateSeaVessels();
+  calcSea();
+  persistRates();
+}
+
+function addSeaBoat(){
+  if (!rates.sea) rates.sea = seaDefaultRates();
+  rates.sea.vessels = readSeaBoats();
+  rates.sea.vessels.push({ name: 'New Boat', cruiseKn: 0, towKn: 0, cruiseGPNM: 0, towGPNM: 0, fuel: 'Diesel' });
+  renderSeaBoats(rates.sea.vessels);
+  saveSeaRates();
+}
+function removeSeaBoat(i){
+  if (!confirm('Remove this boat?')) return;
+  const v = readSeaBoats();
+  v.splice(i, 1);
+  rates.sea.vessels = v;
+  renderSeaBoats(v);
+  saveSeaRates();
+}
+
+// ══════════════════════════════════════════════
+// BY SEA (TOW BOAT) ESTIMATOR
+// Rates and vessel data taken from KMT_TOW_BOAT_Quotes.xlsx
+// ══════════════════════════════════════════════
+const SEA_DEFAULTS = {
+  loadFeePerHr: 200,      // hookup, per hour
+  unloadFeePerHr: 200,    // delivery, per hour
+  overnightFee: 300,      // per night (not in the sheet's fee formula; kept for reference)
+  deadheadPerNm: 13,
+  captainPct: 1/3,
+  vesselPct: 1/3,
+  fuelPrice: { Diesel: 3.90, Gas: 5.02 },
+  vessels: [
+    { name: "40' Bestway Labelle",  cruiseKn: 6,  towKn: 6, cruiseGPNM: 2/3,  towGPNM: 1,   fuel: 'Diesel' },
+    { name: "25' Safeboat Defender", cruiseKn: 25, towKn: 6, cruiseGPNM: 0.16, towGPNM: 1.5, fuel: 'Gas' },
+  ],
+};
+// Live sea rates: admin-edited values from the shared rates record, with defaults as fallback
+function SEA(){
+  const s = (typeof rates !== 'undefined' && rates && rates.sea) ? rates.sea : null;
+  if (!s) return SEA_DEFAULTS;
+  return {
+    ...SEA_DEFAULTS, ...s,
+    fuelPrice: { ...SEA_DEFAULTS.fuelPrice, ...(s.fuelPrice || {}) },
+    vessels: (s.vessels && s.vessels.length) ? s.vessels : SEA_DEFAULTS.vessels,
+  };
+}
+let seaFeeTouched = false;
+const seaMoney = n => (isFinite(n) ? '$' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : '—');
+
+function setEstMode(m){
+  const sea = m === 'sea';
+  document.getElementById('sea-estimator').style.display = sea ? '' : 'none';
+  document.getElementById('land-estimator').style.display = sea ? 'none' : '';
+  document.getElementById('est-mode-land').className = sea ? 'btn' : 'btn primary';
+  document.getElementById('est-mode-sea').className = sea ? 'btn primary' : 'btn';
+  if (sea) { populateSeaVessels(); calcSea(); }
+}
+
+function populateSeaVessels(){
+  const sel = document.getElementById('sea-vessel');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = SEA().vessels.map((v,i)=>`<option value="${i}">${v.name} (${v.fuel})</option>`).join('');
+  if (cur !== '' && sel.querySelector(`option[value="${cur}"]`)) sel.value = cur;
+}
+
+function seaNum(id){ const v = parseFloat((document.getElementById(id)||{}).value); return isFinite(v) ? v : 0; }
+
+function calcSea(){
+  const v = SEA().vessels[seaNum('sea-vessel')] || SEA().vessels[0];
+  const dhOut = seaNum('sea-dh-out'), dhBack = seaNum('sea-dh-back'), trip = seaNum('sea-trip');
+  const puHrs = seaNum('sea-pickup-hrs'), delHrs = seaNum('sea-delivery-hrs');
+  const rate = seaNum('sea-rate') || 28;
+  const dh = dhOut + dhBack;
+
+  // Fee components (matches the spreadsheet exactly)
+  const deadheadFee = dh * SEA().deadheadPerNm;
+  const tripFee = rate * trip;
+  const mobDemob = puHrs * SEA().loadFeePerHr + delHrs * SEA().unloadFeePerHr;
+  const estFee = deadheadFee + tripFee + mobDemob;
+
+  // Fuel: cruise burn on deadhead, towing burn on the loaded trip
+  const burn = v.cruiseGPNM * dh + v.towGPNM * trip;
+  const fuelCost = burn * (SEA().fuelPrice[v.fuel] || 0);
+
+  // Trip time: deadhead at cruise speed, trip at towing speed, plus work hours
+  const hours = (v.cruiseKn ? dh / v.cruiseKn : 0) + (v.towKn ? trip / v.towKn : 0) + puHrs + delHrs;
+  const hh = Math.floor(hours), mm = Math.round((hours - hh) * 60);
+
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+  set('sea-out-deadhead', seaMoney(deadheadFee));
+  set('sea-out-trip', seaMoney(tripFee));
+  set('sea-out-mobdemob', seaMoney(mobDemob));
+  set('sea-out-fee', seaMoney(estFee));
+  const lbl = document.getElementById('sea-out-fee-label');
+  if (lbl) lbl.textContent = 'Trip Fee @ $' + rate + ' per nm';
+  set('sea-out-burn', burn.toFixed(1));
+  set('sea-out-fuel', seaMoney(fuelCost));
+  set('sea-out-time', String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0'));
+
+  // Final fee drives the split — follows the estimate until manually edited
+  const feeEl = document.getElementById('sea-final-fee');
+  if (feeEl && !seaFeeTouched) feeEl.value = estFee ? estFee.toFixed(2) : '';
+  const fee = feeEl && feeEl.value !== '' ? parseFloat(feeEl.value) || 0 : estFee;
+
+  const captain = SEA().captainPct * fee;
+  const vessel = SEA().vesselPct * fee;
+  const profit = fee - captain - vessel - fuelCost;
+  const capHr = hours > 0 ? captain / hours : 0;
+
+  set('sea-out-captain', seaMoney(captain) + (hours > 0 ? '  (' + seaMoney(capHr) + '/hr)' : ''));
+  set('sea-out-vessel', seaMoney(vessel));
+  set('sea-out-fuel2', seaMoney(fuelCost));
+  set('sea-out-profit', seaMoney(profit));
+  set('sea-out-grossrate', trip > 0 ? seaMoney(fee / trip) : '—');
+}
+
+function clearSeaForm(){
+  ['sea-dh-out','sea-dh-back','sea-trip','sea-pickup-hrs','sea-delivery-hrs','sea-customer','sea-final-fee','sea-notes']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const r = document.getElementById('sea-rate'); if (r) r.value = '28';
+  seaFeeTouched = false;
+  calcSea();
+}
+
+async function saveSeaBid(){
+  const customer = (document.getElementById('sea-customer').value || '').trim();
+  if (!customer) { showToast('Enter a customer name first'); return; }
+  const feeEl = document.getElementById('sea-final-fee');
+  const fee = parseFloat(feeEl && feeEl.value) || 0;
+  const seaData = {
+    vessel: (SEA().vessels[seaNum('sea-vessel')] || {}).name || null,
+    rate_per_nm: seaNum('sea-rate'),
+    deadhead_out_nm: seaNum('sea-dh-out'),
+    deadhead_back_nm: seaNum('sea-dh-back'),
+    trip_nm: seaNum('sea-trip'),
+    pickup_hrs: seaNum('sea-pickup-hrs'),
+    delivery_hrs: seaNum('sea-delivery-hrs'),
+    est_fee: document.getElementById('sea-out-fee').value,
+    fuel_cost: document.getElementById('sea-out-fuel').value,
+    trip_time: document.getElementById('sea-out-time').value,
+    captain_pay: document.getElementById('sea-out-captain').value,
+    vessel_pay: document.getElementById('sea-out-vessel').value,
+    gross_profit: document.getElementById('sea-out-profit').value,
+  };
+  try {
+    await sb('kmt_bids', 'POST', {
+      customer,
+      status: 'Pending',
+      trip_price: fee || null,
+      notes: (document.getElementById('sea-notes').value || '').trim() || null,
+      transport_mode: 'sea',
+      sea_data: seaData,
+    });
+    showToast('Sea bid saved ✓');
+    clearSeaForm();
+  } catch(e) {
+    showToast('Save failed — did you run 13_sea_bids.sql?');
+  }
 }
 
 // ══════════════════════════════════════════════
