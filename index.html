@@ -2031,20 +2031,70 @@ function renderBids(){
     </div>`;
   }).join('');
 }
-function viewBid(id){
-  const b=bids.find(x=>x.id==id);if(!b)return;
-  const bc=statusBadgeClass[b.status]||'gray';
+// ── Modal body, per bid type ──
+function dRow(label,val){ return `<div class="detail-row"><span class="dl">${label}</span><span class="dv">${(val===null||val===undefined||val==='')?'—':val}</span></div>`; }
+function dSec(title,rows){ return `<div class="detail-section"><div class="detail-section-title">${title}</div>${rows.join('')}</div>`; }
+
+function bidDetailHtml(b){
+  const t=bidType(b), sd=b.sea_data||{};
   const profCls=(b.profit||0)>=0?'var(--green)':'var(--red)';
-  const ov=document.createElement('div');
-  ov.className='overlay';
-  ov.onclick=e=>{if(e.target===ov)ov.remove()};
-  ov.innerHTML=`<div class="modal">
-    <div class="modal-header">
-      <div><div class="modal-title">${b.customer||'Unnamed'}</div><div style="font-size:13px;color:var(--text-muted);margin-top:2px">${b.boat||'—'} · ${b.bid_date||''}</div></div>
-      <button class="modal-close" onclick="this.closest('.overlay').remove()">✕</button>
-    </div>
-    <span class="badge ${bc}" style="margin-bottom:0.875rem;display:inline-block">${b.status}</span>
-    <div class="detail-section"><div class="detail-section-title">Route</div>
+
+  if(t==='captain'){
+    const v=sd.vessel||{};
+    const unit=sd.rate_type==='hour'?'hr':'day';
+    const loa=v.loa?(fmtFtIn(v.loa)||v.loa+' ft'):null;
+    return dSec('Customer',[
+        dRow('Phone', sd.phone),
+        dRow('Email', sd.email)
+      ])
+      + dSec('Vessel',[
+        dRow('Year / Make / Model', [v.year,v.make,v.model].filter(Boolean).join(' ')||null),
+        dRow('Vessel Name', v.name),
+        dRow('LOA', loa),
+        dRow('Power / Sail', v.power_sail)
+      ])
+      + dSec('Route',[
+        dRow('Pickup', sd.pickup),
+        dRow('Destination', sd.destination)
+      ])
+      + dSec('Hire Terms',[
+        dRow('Rate Basis', sd.rate_type==='hour'?'Hourly':'Day Rate'),
+        dRow(sd.rate_type==='hour'?'Hours':'Days', sd.qty||0),
+        dRow('Captain Rate', fmt(sd.captain_rate||0)+' / '+unit),
+        dRow('First Mates', sd.mates||0),
+        dRow('Mate Rate', sd.mates?fmt(sd.mate_rate||0)+' / '+unit:'—')
+      ])
+      + dSec('Financials',[
+        dRow('Captain Fee', fmt(sd.captain_fee||0)),
+        dRow('First Mate Fee', fmt(sd.mate_fee||0)),
+        `<div class="detail-row"><span class="dl" style="font-weight:600">Total</span><span class="dv" style="font-weight:700">${fmt(sd.total||b.trip_price||0)}</span></div>`
+      ]);
+  }
+
+  if(t==='boat'){
+    const dh=(sd.deadhead_out_nm||0)+(sd.deadhead_back_nm||0);
+    return dSec('Vessel & Route',[
+        dRow('Tow Boat', sd.vessel),
+        dRow('Trip', (sd.trip_nm||0)+' nm'),
+        dRow('Deadhead Out / Back', (sd.deadhead_out_nm||0)+' / '+(sd.deadhead_back_nm||0)+' nm ('+dh+' total)'),
+        dRow('Trip Rate', sd.rate_per_nm?'$'+sd.rate_per_nm+' / nm':null),
+        dRow('Pickup / Delivery Time', (sd.pickup_hrs||0)+' / '+(sd.delivery_hrs||0)+' hrs')
+      ])
+      + dSec('Estimate',[
+        dRow('Estimated Trip Fee', sd.est_fee),
+        dRow('Fuel Cost', sd.fuel_cost),
+        dRow('Estimated Trip Time', sd.trip_time)
+      ])
+      + dSec('Split',[
+        dRow('Captain Pay', sd.captain_pay),
+        dRow('Vessel Pay', sd.vessel_pay),
+        dRow('Gross Profit', sd.gross_profit),
+        `<div class="detail-row"><span class="dl" style="font-weight:600">Final Trip Fee</span><span class="dv" style="font-weight:700">${fmt(b.trip_price||0)}</span></div>`
+      ]);
+  }
+
+  // Truck (land) — unchanged
+  return `<div class="detail-section"><div class="detail-section-title">Route</div>
       ${b.customer_phone||b.customer_email?`<div class="detail-row" style="margin-bottom:4px"><span class="dl">Phone</span><span class="dv">${b.customer_phone||'—'}</span></div><div class="detail-row" style="margin-bottom:8px"><span class="dl">Email</span><span class="dv">${b.customer_email||'—'}</span></div>`:''}
       <div class="detail-row"><span class="dl">Pickup</span><span class="dv">${[b.pickup_name,b.pickup_street,[b.pickup_city,b.pickup_state,b.pickup_zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')||b.pickup||'—'}</span></div>
       <div class="detail-row"><span class="dl">Drop</span><span class="dv">${[b.drop_name,b.drop_street,[b.drop_city,b.drop_state,b.drop_zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')||b.drop_location||'—'}</span></div>
@@ -2068,7 +2118,23 @@ function viewBid(id){
       <div class="detail-row"><span class="dl">Maint / Ins / Vehicle</span><span class="dv">${fmt(b.maint_alloc||0)} / ${fmt(b.ins_alloc||0)} / ${fmt(b.vehicle_alloc||0)}</span></div>
       <div class="detail-row"><span class="dl">KM / SMS Alloc</span><span class="dv">${fmt(b.km_alloc||0)} / ${fmt(b.sms_alloc||0)}</span></div>
       <div class="detail-row"><span class="dl" style="font-weight:600">Est. Profit</span><span class="dv" style="color:${profCls}">${(b.profit||0)<0?'−':'+'}${fmt(Math.abs(b.profit||0))}</span></div>
+    </div>`;
+}
+
+function viewBid(id){
+  const b=bids.find(x=>x.id==id);if(!b)return;
+  const bc=statusBadgeClass[b.status]||'gray';
+  const profCls=(b.profit||0)>=0?'var(--green)':'var(--red)';
+  const ov=document.createElement('div');
+  ov.className='overlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove()};
+  ov.innerHTML=`<div class="modal">
+    <div class="modal-header">
+      <div><div class="modal-title">${b.customer||'Unnamed'}</div><div style="font-size:13px;color:var(--text-muted);margin-top:2px">${bidSubline(b)[0]} · ${b.bid_date||'No date'}</div></div>
+      <button class="modal-close" onclick="this.closest('.overlay').remove()">✕</button>
     </div>
+    <div style="margin-bottom:0.875rem"><span class="badge ${BID_TYPE_META[bidType(b)].cls}">${BID_TYPE_META[bidType(b)].icon} ${BID_TYPE_META[bidType(b)].label}</span> <span class="badge ${bc}">${b.status}</span></div>
+    ${bidDetailHtml(b)}
     ${b.notes?`<div style="font-size:13px;color:var(--text-muted);margin-bottom:0.875rem;padding:8px 10px;background:var(--gray-50);border-radius:var(--radius)">📝 ${b.notes}</div>`:''}
     <div class="detail-section"><div class="detail-section-title">Update Status</div>
       <select id="statusUpd_${b.id}" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:14px;background:white;-webkit-appearance:none;margin-bottom:0.75rem">
@@ -2077,7 +2143,7 @@ function viewBid(id){
     </div>
     <div class="btn-row">
       <button class="btn primary" onclick="updateBidStatus('${b.id}');this.closest('.overlay').remove()">Save Status</button>
-      <button class="btn" onclick="editBid('${b.id}');this.closest('.overlay').remove()">✏️ Edit</button>
+      ${bidType(b)==='truck'?`<button class="btn" onclick="editBid('${b.id}');this.closest('.overlay').remove()">✏️ Edit</button>`:''}
       <button class="btn danger" onclick="if(confirm('Delete this bid?')){deleteBid('${b.id}');this.closest('.overlay').remove()}">🗑 Delete</button>
     </div>
   </div>`;
