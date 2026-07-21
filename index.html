@@ -306,6 +306,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 
   <!-- ══ SEA (TOW BOAT) ESTIMATOR ══ -->
   <div id="sea-estimator" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:0.9rem">
+      <button class="btn primary" id="sea-kind-tow" onclick="setSeaKind('tow')" style="flex:1;font-size:13px;padding:9px">⛵ Tow Boat</button>
+      <button class="btn" id="sea-kind-captain" onclick="setSeaKind('captain')" style="flex:1;font-size:13px;padding:9px">🧭 Captain Hire</button>
+    </div>
+
+    <div id="sea-tow">
     <div class="card">
       <div class="card-title">Tow Boat &amp; Route</div>
       <div class="form-grid">
@@ -358,6 +364,68 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="card-title">Notes</div>
       <textarea id="sea-notes" rows="3" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit" placeholder="Conditions, bridge openings, tide windows, overnight stays…"></textarea>
     </div>
+    </div><!-- /sea-tow -->
+
+    <!-- ══ CAPTAIN HIRE ESTIMATOR ══ -->
+    <div id="sea-captain" style="display:none">
+      <div class="card">
+        <div class="card-title">Customer Information</div>
+        <div class="form-grid">
+          <div class="field"><label>Customer Name</label><input type="text" id="cap-customer" placeholder="Customer name"></div>
+          <div class="field"><label>Phone</label><input type="tel" id="cap-phone" placeholder="(410) 555-0100"></div>
+          <div class="field"><label>Email</label><input type="email" id="cap-email" placeholder="name@email.com"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Vessel Information</div>
+        <div class="form-grid">
+          <div class="field"><label>Year</label><input type="number" id="cap-year" placeholder="2020" min="1900" max="2100"></div>
+          <div class="field"><label>Make</label><input type="text" id="cap-make" placeholder="e.g. Beneteau"></div>
+          <div class="field"><label>Model</label><input type="text" id="cap-model" placeholder="Model"></div>
+          <div class="field"><label>Vessel Name</label><input type="text" id="cap-vesselname" placeholder="Vessel name"></div>
+          <div class="field"><label>LOA</label><div class="ftin"><input type="number" id="cap-loa-ft" placeholder="0" min="0" oninput="ftinChanged('cap-loa')"><span class="u">ft</span><input type="number" id="cap-loa-in" placeholder="0" min="0" max="11" oninput="ftinChanged('cap-loa')"><span class="u">in</span></div><input type="hidden" id="cap-loa"></div>
+          <div class="field"><label>Power / Sail</label>
+            <select id="cap-powersail" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+              <option value="">—</option><option>Power</option><option>Sail</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Pickup &amp; Destination</div>
+        <div class="form-grid">
+          <div class="field full"><label>Pickup Location</label><input type="text" id="cap-pickup" placeholder="Marina / city, state"></div>
+          <div class="field full"><label>Destination</label><input type="text" id="cap-destination" placeholder="Marina / city, state"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Rate &amp; Crew</div>
+        <div class="form-grid">
+          <div class="field"><label>Rate Type</label>
+            <select id="cap-rate-type" onchange="calcCaptain()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+              <option value="day">Day Rate</option>
+              <option value="hour">Hourly</option>
+            </select>
+          </div>
+          <div class="field"><label id="cap-qty-label">Days</label><input type="number" step="0.5" id="cap-qty" placeholder="0" min="0" oninput="calcCaptain()"></div>
+          <div class="field"><label>First Mates</label><input type="number" id="cap-mates" placeholder="0" min="0" max="10" oninput="calcCaptain()"></div>
+        </div>
+        <p id="cap-rate-info" style="font-size:12px;color:var(--text-muted);margin:2px 0 10px"></p>
+        <div class="form-grid">
+          <div class="field"><label>Captain Fee</label><input type="text" id="cap-out-captain" readonly style="background:var(--gray-50)"></div>
+          <div class="field"><label>First Mate Fee</label><input type="text" id="cap-out-mates" readonly style="background:var(--gray-50)"></div>
+          <div class="field"><label>Total</label><input type="text" id="cap-out-total" readonly style="background:#eef6ee;font-weight:700"></div>
+        </div>
+        <div class="btn-row" style="margin-top:0.75rem">
+          <button class="btn primary" onclick="saveCaptainBid()">💾 Save Captain Bid</button>
+          <button class="btn" onclick="clearCaptainForm()">↺ Clear</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Notes <span style="font-weight:400;text-transform:none;color:var(--text-muted)">(optional)</span></div>
+        <textarea id="cap-notes" rows="3" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit" placeholder="Delivery window, provisioning, owner aboard, licensing needs…"></textarea>
+      </div>
+    </div><!-- /sea-captain -->
   </div>
 
   <div id="land-estimator">
@@ -539,6 +607,15 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="form-grid">
         <div class="field"><label>Captain Pay Rate</label><input type="number" step="0.0001" id="sr_captainPct" oninput="saveSeaRates()"></div>
         <div class="field"><label>Vessel Pay Rate</label><input type="number" step="0.0001" id="sr_vesselPct" oninput="saveSeaRates()"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Captain Hire Rates</div>
+      <div class="form-grid">
+        <div class="field"><label>Captain Day Rate ($)</label><input type="number" step="1" id="sr_capDay" oninput="saveSeaRates()"></div>
+        <div class="field"><label>Captain Hourly Rate ($)</label><input type="number" step="1" id="sr_capHr" oninput="saveSeaRates()"></div>
+        <div class="field"><label>First Mate Day Rate ($)</label><input type="number" step="1" id="sr_mateDay" oninput="saveSeaRates()"></div>
+        <div class="field"><label>First Mate Hourly Rate ($)</label><input type="number" step="1" id="sr_mateHr" oninput="saveSeaRates()"></div>
       </div>
     </div>
     <div class="card">
@@ -1181,6 +1258,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
   <div style="display:flex;gap:6px;margin-bottom:1rem;flex-wrap:wrap;align-items:center">
     <button class="btn primary" id="etab-trucks" onclick="showEquipTab('trucks')" style="font-size:12px;padding:6px 14px">🚛 Trucks</button>
     <button class="btn" id="etab-trailers" onclick="showEquipTab('trailers')" style="font-size:12px;padding:6px 14px">🚚 Trailers</button>
+    <button class="btn" id="etab-vessels" onclick="showEquipTab('vessels')" style="font-size:12px;padding:6px 14px">⛵ Vessels</button>
     <div style="flex:1"></div>
     <button class="btn accent" id="addEquipBtn" onclick="openEquipForm(null)" style="font-size:12px;padding:6px 14px;display:none">+ Add Equipment</button>
   </div>
@@ -1208,6 +1286,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
           <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;font-weight:500">
             <input type="radio" name="equip-type" id="equip-type-trailer" value="trailer" onchange="updateEquipFormFields()" style="accent-color:var(--navy)"> 🚚 Trailer
           </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:14px;cursor:pointer;font-weight:500">
+            <input type="radio" name="equip-type" id="equip-type-vessel" value="vessel" onchange="updateEquipFormFields()" style="accent-color:var(--navy)"> ⛵ Vessel
+          </label>
         </div>
       </div>
 
@@ -1219,9 +1300,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
           <div class="field"><label>Unit #</label><input type="text" id="ef-unit" placeholder="e.g. 01, T-01"></div>
           <div class="field"><label>Make</label><input type="text" id="ef-make" placeholder="e.g. RAM, CONOLIFT"></div>
           <div class="field"><label>Year</label><input type="number" id="ef-year" placeholder="2024" min="1900" max="2100"></div>
-          <div class="field"><label>VIN</label><input type="text" id="ef-vin" placeholder="VIN number"></div>
-          <div class="field"><label>License Plate</label><input type="text" id="ef-plate" placeholder="e.g. 8GN1891"></div>
-          <div class="field"><label>License State</label><input type="text" id="ef-plate-state" placeholder="e.g. MD" maxlength="2" style="text-transform:uppercase"></div>
+          <div class="field"><label id="ef-vin-label">VIN</label><input type="text" id="ef-vin" placeholder="VIN number"></div>
+          <div class="field"><label id="ef-plate-label">License Plate</label><input type="text" id="ef-plate" placeholder="e.g. 8GN1891"></div>
+          <div class="field"><label id="ef-plate-state-label">License State</label><input type="text" id="ef-plate-state" placeholder="e.g. MD" maxlength="2" style="text-transform:uppercase"></div>
           <div class="field"><label>Style</label><input type="text" id="ef-style" placeholder="e.g. Pickup, Hydraulic"></div>
         </div>
       </div>
@@ -1230,14 +1311,14 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="card" style="margin-bottom:0.75rem">
         <div class="card-title">Weights & Capacity</div>
         <div class="form-grid">
-          <div class="field"><label>Curb Weight (lbs)</label><input type="number" id="ef-curb-weight" placeholder="0"></div>
+          <div class="field"><label id="ef-curb-label">Curb Weight (lbs)</label><input type="number" id="ef-curb-weight" placeholder="0"></div>
           <div class="field"><label>Max Load Weight (lbs)</label><input type="number" id="ef-max-load" placeholder="0"></div>
           <div class="field"><label>GVWR (lbs)</label><input type="number" id="ef-gvwr" placeholder="0"></div>
-          <div class="field"><label>GAWR Axle 1 (lbs)</label><input type="number" id="ef-gawr1" placeholder="0"></div>
-          <div class="field"><label>GAWR Axle 2 (lbs)</label><input type="number" id="ef-gawr2" placeholder="0"></div>
-          <div class="field"><label>GAWR Axle 3 (lbs)</label><input type="number" id="ef-gawr3" placeholder="0"></div>
-          <div class="field"><label>GAWR Axle 4 (lbs)</label><input type="number" id="ef-gawr4" placeholder="0"></div>
-          <div class="field"><label>Number of Axles</label><input type="number" id="ef-axles" placeholder="2" min="1" max="6"></div>
+          <div class="field gawr-field"><label>GAWR Axle 1 (lbs)</label><input type="number" id="ef-gawr1" placeholder="0"></div>
+          <div class="field gawr-field"><label>GAWR Axle 2 (lbs)</label><input type="number" id="ef-gawr2" placeholder="0"></div>
+          <div class="field gawr-field"><label>GAWR Axle 3 (lbs)</label><input type="number" id="ef-gawr3" placeholder="0"></div>
+          <div class="field gawr-field"><label>GAWR Axle 4 (lbs)</label><input type="number" id="ef-gawr4" placeholder="0"></div>
+          <div class="field gawr-field"><label>Number of Axles</label><input type="number" id="ef-axles" placeholder="2" min="1" max="6"></div>
         </div>
       </div>
 
@@ -1247,13 +1328,13 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
         <div class="form-grid">
           <div class="field"><label>Overall Length (in)</label><input type="number" step="0.1" id="ef-length-in" placeholder="0" oninput="convertLength()"></div>
           <div class="field"><label>Overall Length (ft)</label><input type="text" id="ef-length-ft" placeholder="0' 0&quot;" readonly style="background:var(--gray-50)"></div>
-          <div class="field"><label>Width (in)</label><input type="number" step="0.1" id="ef-width-in" placeholder="0" oninput="convertWidth()"></div>
+          <div class="field"><label id="ef-width-label">Width (in)</label><input type="number" step="0.1" id="ef-width-in" placeholder="0" oninput="convertWidth()"></div>
           <div class="field"><label>Width (ft)</label><input type="text" id="ef-width-ft" placeholder="0' 0&quot;" readonly style="background:var(--gray-50)"></div>
         </div>
       </div>
 
       <!-- Tires -->
-      <div class="card" style="margin-bottom:0.75rem">
+      <div class="card" id="ef-tire-card" style="margin-bottom:0.75rem">
         <div class="card-title">Tires</div>
         <div class="form-grid">
           <div class="field"><label>Tire Size</label><input type="text" id="ef-tire-size" placeholder="e.g. 225/70R19.5"></div>
@@ -1550,6 +1631,8 @@ function seaDefaultRates(){
     loadFeePerHr: 200, unloadFeePerHr: 200, overnightFee: 300, deadheadPerNm: 13,
     captainPct: 1/3, vesselPct: 1/3,
     fuelPrice: { Diesel: 3.90, Gas: 5.02 },
+    captainDayRate: 600, captainHourlyRate: 75,
+    mateDayRate: 300, mateHourlyRate: 40,
     vessels: [
       { name: "40' Bestway Labelle",  cruiseKn: 6,  towKn: 6, cruiseGPNM: 2/3,  towGPNM: 1,   fuel: 'Diesel' },
       { name: "25' Safeboat Defender", cruiseKn: 25, towKn: 6, cruiseGPNM: 0.16, towGPNM: 1.5, fuel: 'Gas' },
@@ -1877,7 +1960,7 @@ function renderBids(){
     return `<div class="bid-card" onclick="viewBid('${b.id}')">
       <div class="bid-card-top">
         <div style="flex:1;min-width:0">
-          <div class="bid-card-name">${b.transport_mode==='sea' ? '⛵ ' : ''}${b.customer||'Unnamed'}</div>
+          <div class="bid-card-name">${b.transport_mode==='sea' ? ((b.sea_data&&b.sea_data.kind==='captain')?'🧭 ':'⛵ ') : ''}${b.customer||'Unnamed'}</div>
           <div class="bid-card-sub">${[b.boat_year,b.boat_make,b.boat_model].filter(Boolean).join(' ')||b.boat||'—'} · ${b.pickup||'?'} → ${b.drop_location||'?'}</div>
           <div class="bid-card-sub" style="margin-top:1px">${b.trip_miles||0} mi · ${b.bid_date||'No date'}</div>
         </div>
@@ -4082,8 +4165,18 @@ function convertWidth() {
 }
 function updateEquipFormFields() {
   const type = document.querySelector('input[name="equip-type"]:checked')?.value;
+  const vessel = type === 'vessel';
   const axleCard = document.getElementById('ef-axle-card');
   if (axleCard) axleCard.style.display = type === 'trailer' ? '' : 'none';
+  const tireCard = document.getElementById('ef-tire-card');
+  if (tireCard) tireCard.style.display = vessel ? 'none' : '';
+  document.querySelectorAll('.gawr-field').forEach(el => el.style.display = vessel ? 'none' : '');
+  const lbl = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  lbl('ef-vin-label', vessel ? 'HIN' : 'VIN');
+  lbl('ef-plate-label', vessel ? 'Registration / Doc #' : 'License Plate');
+  lbl('ef-plate-state-label', vessel ? 'Reg. State' : 'License State');
+  lbl('ef-curb-label', vessel ? 'Dry Weight (lbs)' : 'Curb Weight (lbs)');
+  lbl('ef-width-label', vessel ? 'Beam (in)' : 'Width (in)');
 }
 
 async function loadEquipmentFromDB() {
@@ -4108,6 +4201,8 @@ function showEquipTab(tab) {
   equipCurrentTab = tab;
   document.getElementById('etab-trucks').className = tab === 'trucks' ? 'btn primary' : 'btn';
   document.getElementById('etab-trailers').className = tab === 'trailers' ? 'btn primary' : 'btn';
+  const vt = document.getElementById('etab-vessels');
+  if (vt) vt.className = tab === 'vessels' ? 'btn primary' : 'btn';
   renderEquipList();
 }
 
@@ -4115,10 +4210,11 @@ function renderEquipList() {
   const isAdmin = currentSession && currentSession.role === 'admin';
   const addBtn = document.getElementById('addEquipBtn');
   if (addBtn) addBtn.style.display = isAdmin ? '' : 'none';
-  const filtered = equipment.filter(e => equipCurrentTab === 'trucks' ? e.type === 'truck' : e.type === 'trailer');
+  const typeMap = { trucks: 'truck', trailers: 'trailer', vessels: 'vessel' };
+  const filtered = equipment.filter(e => e.type === typeMap[equipCurrentTab]);
   const el = document.getElementById('equipList');
   if (!filtered.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">${equipCurrentTab==='trucks'?'🚛':'🚚'}</div><p>No ${equipCurrentTab} found.${isAdmin?' Click + Add Equipment to add one.':''}</p></div>`;
+    el.innerHTML = `<div class="empty"><div class="empty-icon">${equipCurrentTab==='trucks'?'🚛':equipCurrentTab==='vessels'?'⛵':'🚚'}</div><p>No ${equipCurrentTab} found.${isAdmin?' Click + Add Equipment to add one.':''}</p></div>`;
     return;
   }
   el.innerHTML = filtered.map(e => {
@@ -4131,16 +4227,16 @@ function renderEquipList() {
         <div style="flex:1;min-width:0">
           <div class="bid-card-name">${e.name || '—'} <span style="font-size:12px;font-weight:400;color:var(--text-muted)">Unit #${e.unit||'—'}</span></div>
           <div class="bid-card-sub">${[e.year,e.make,e.style].filter(Boolean).join(' · ')} · ${e.plate||''} ${e.plate_state||''}</div>
-          <div class="bid-card-sub" style="margin-top:2px">VIN: ${e.vin||'—'}</div>
+          <div class="bid-card-sub" style="margin-top:2px">${e.type==='vessel'?'HIN':'VIN'}: ${e.vin||'—'}</div>
         </div>
         <div style="flex-shrink:0;margin-left:12px;text-align:right">
-          <div style="font-size:12px;font-weight:600;color:var(--navy)">GVWR: ${gvwr}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">Max Load: ${maxLoad}</div>
-          <div style="font-size:11px;color:var(--text-muted);">${length} · ${width} wide</div>
+          <div style="font-size:12px;font-weight:600;color:var(--navy)">${e.type==='vessel' ? 'Dry Wt: ' + (e.curb_weight ? e.curb_weight.toLocaleString() + ' lbs' : '—') : 'GVWR: ' + gvwr}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${e.type==='vessel' ? 'Capacity: ' + maxLoad : 'Max Load: ' + maxLoad}</div>
+          <div style="font-size:11px;color:var(--text-muted);">${length} · ${width} ${e.type==='vessel' ? 'beam' : 'wide'}</div>
         </div>
       </div>
       <div class="bid-card-meta">
-        <span class="badge navy">${e.type==='truck'?'🚛 Truck':'🚚 Trailer'}</span>
+        <span class="badge navy">${e.type==='truck'?'🚛 Truck':e.type==='vessel'?'⛵ Vessel':'🚚 Trailer'}</span>
         ${e.tire_size?`<span class="badge gray">${e.tire_size}</span>`:''}
         ${e.axles?`<span class="badge gray">${e.axles} axles</span>`:''}
         ${e.gvwr?`<span class="badge blue">GVWR ${(e.gvwr/1000).toFixed(1)}k lbs</span>`:''}
@@ -4190,6 +4286,21 @@ function viewEquipment(id) {
       <div class="detail-row"><span class="dl">Load Rating</span><span class="dv">${e.tire_rating||'—'}</span></div>
     </div>`;
 
+  const vesselFields = `
+    <div class="detail-section"><div class="detail-section-title">Identification</div>
+      <div class="detail-row"><span class="dl">Unit #</span><span class="dv">${e.unit||'—'}</span></div>
+      <div class="detail-row"><span class="dl">Year / Make</span><span class="dv">${[e.year,e.make].filter(Boolean).join(' ')||'—'}</span></div>
+      <div class="detail-row"><span class="dl">Style</span><span class="dv">${e.style||'—'}</span></div>
+      <div class="detail-row"><span class="dl">HIN</span><span class="dv" style="font-family:monospace;font-size:12px">${e.vin||'—'}</span></div>
+      <div class="detail-row"><span class="dl">Registration / Doc #</span><span class="dv">${e.plate||'—'} ${e.plate_state||''}</span></div>
+    </div>
+    <div class="detail-section"><div class="detail-section-title">Specifications</div>
+      <div class="detail-row"><span class="dl">Dry Weight</span><span class="dv">${fmtNum(e.curb_weight,'lbs')}</span></div>
+      <div class="detail-row"><span class="dl">Max Load / Capacity</span><span class="dv">${fmtNum(e.max_load,'lbs')}</span></div>
+      <div class="detail-row"><span class="dl">LOA</span><span class="dv">${fmtIn(e.length_in)}</span></div>
+      <div class="detail-row"><span class="dl">Beam</span><span class="dv">${fmtIn(e.width_in)}</span></div>
+    </div>`;
+
   const trailerExtra = e.type === 'trailer' ? `
     <div class="detail-section"><div class="detail-section-title">Axle Spacings</div>
       <div class="detail-row"><span class="dl">Tongue to Axle 1</span><span class="dv">${fmtIn(e.tongue_axle1)}</span></div>
@@ -4204,11 +4315,11 @@ function viewEquipment(id) {
     <div class="modal-header">
       <div>
         <div class="modal-title">${e.name||'Equipment'}</div>
-        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Unit #${e.unit||'—'} · ${e.type==='truck'?'🚛 Truck':'🚚 Trailer'}</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-top:2px">Unit #${e.unit||'—'} · ${e.type==='truck'?'🚛 Truck':e.type==='vessel'?'⛵ Vessel':'🚚 Trailer'}</div>
       </div>
       <button class="modal-close" onclick="this.closest('.overlay').remove();document.body.style.overflow=''">✕</button>
     </div>
-    ${truckFields}${trailerExtra}${notesSection}
+    ${e.type==='vessel' ? vesselFields : truckFields}${e.type==='vessel' ? '' : trailerExtra}${notesSection}
     <div class="btn-row">
       ${isAdmin ? `<button class="btn primary" onclick="this.closest('.overlay').remove();document.body.style.overflow='';openEquipForm('${e.id}')">✏️ Edit</button>` : ''}
       <button class="btn" onclick="this.closest('.overlay').remove();document.body.style.overflow=''">Close</button>
@@ -4249,7 +4360,9 @@ function openEquipForm(id) {
      'ef-length-in','ef-length-ft','ef-width-in','ef-width-ft','ef-tire-size','ef-tire-psi','ef-tire-rating',
      'ef-tongue-axle1','ef-axle1-axle2','ef-axle2-axle3','ef-axle3-axle4','ef-rear-axle-rear','ef-notes'
     ].forEach(i => { const el = document.getElementById(i); if(el) el.value = ''; });
-    document.getElementById('equip-type-truck').checked = true;
+    const pre = equipCurrentTab === 'vessels' ? 'equip-type-vessel' : equipCurrentTab === 'trailers' ? 'equip-type-trailer' : 'equip-type-truck';
+    const preEl = document.getElementById(pre);
+    (preEl || document.getElementById('equip-type-truck')).checked = true;
   }
   updateEquipFormFields();
 }
@@ -5499,6 +5612,8 @@ function applySeaRatesToUI(){
   set('sr_overnight', s.overnightFee); set('sr_deadhead', s.deadheadPerNm);
   set('sr_captainPct', s.captainPct); set('sr_vesselPct', s.vesselPct);
   set('sr_dieselPrice', (s.fuelPrice||{}).Diesel); set('sr_gasPrice', (s.fuelPrice||{}).Gas);
+  set('sr_capDay', s.captainDayRate); set('sr_capHr', s.captainHourlyRate);
+  set('sr_mateDay', s.mateDayRate); set('sr_mateHr', s.mateHourlyRate);
   renderSeaBoats(s.vessels || []);
 }
 
@@ -5538,8 +5653,11 @@ function saveSeaRates(){
     overnightFee: f('sr_overnight'), deadheadPerNm: f('sr_deadhead'),
     captainPct: f('sr_captainPct'), vesselPct: f('sr_vesselPct'),
     fuelPrice: { Diesel: f('sr_dieselPrice'), Gas: f('sr_gasPrice') },
+    captainDayRate: f('sr_capDay'), captainHourlyRate: f('sr_capHr'),
+    mateDayRate: f('sr_mateDay'), mateHourlyRate: f('sr_mateHr'),
     vessels: readSeaBoats(),
   };
+  calcCaptain();
   populateSeaVessels();
   calcSea();
   persistRates();
@@ -5573,6 +5691,8 @@ const SEA_DEFAULTS = {
   captainPct: 1/3,
   vesselPct: 1/3,
   fuelPrice: { Diesel: 3.90, Gas: 5.02 },
+  captainDayRate: 600, captainHourlyRate: 75,
+  mateDayRate: 300, mateHourlyRate: 40,
   vessels: [
     { name: "40' Bestway Labelle",  cruiseKn: 6,  towKn: 6, cruiseGPNM: 2/3,  towGPNM: 1,   fuel: 'Diesel' },
     { name: "25' Safeboat Defender", cruiseKn: 25, towKn: 6, cruiseGPNM: 0.16, towGPNM: 1.5, fuel: 'Gas' },
@@ -5597,7 +5717,90 @@ function setEstMode(m){
   document.getElementById('land-estimator').style.display = sea ? 'none' : '';
   document.getElementById('est-mode-land').className = sea ? 'btn' : 'btn primary';
   document.getElementById('est-mode-sea').className = sea ? 'btn primary' : 'btn';
-  if (sea) { populateSeaVessels(); calcSea(); }
+  if (sea) { populateSeaVessels(); calcSea(); calcCaptain(); }
+}
+
+function setSeaKind(k){
+  const cap = k === 'captain';
+  const tw = document.getElementById('sea-tow'), cp = document.getElementById('sea-captain');
+  if (tw) tw.style.display = cap ? 'none' : '';
+  if (cp) cp.style.display = cap ? '' : 'none';
+  const bt = document.getElementById('sea-kind-tow'), bc = document.getElementById('sea-kind-captain');
+  if (bt) bt.className = cap ? 'btn' : 'btn primary';
+  if (bc) bc.className = cap ? 'btn primary' : 'btn';
+  if (cap) calcCaptain();
+}
+
+function calcCaptain(){
+  const s = SEA();
+  const typeEl = document.getElementById('cap-rate-type');
+  if (!typeEl) return;
+  const daily = typeEl.value !== 'hour';
+  const qty = seaNum('cap-qty');
+  const mates = Math.max(0, Math.round(seaNum('cap-mates')));
+  const capRate = daily ? (s.captainDayRate || 0) : (s.captainHourlyRate || 0);
+  const mateRate = daily ? (s.mateDayRate || 0) : (s.mateHourlyRate || 0);
+  const unit = daily ? 'day' : 'hr';
+
+  const lbl = document.getElementById('cap-qty-label');
+  if (lbl) lbl.textContent = daily ? 'Days' : 'Hours';
+  const info = document.getElementById('cap-rate-info');
+  if (info) info.textContent = 'Captain ' + seaMoney(capRate) + '/' + unit +
+    ' · First Mate ' + seaMoney(mateRate) + '/' + unit + ' — set under Admin → Rates → Boat';
+
+  const captainFee = qty * capRate;
+  const mateFee = mates * qty * mateRate;
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+  set('cap-out-captain', seaMoney(captainFee));
+  set('cap-out-mates', mates ? seaMoney(mateFee) + '  (' + mates + ' × ' + seaMoney(qty * mateRate) + ')' : seaMoney(0));
+  set('cap-out-total', seaMoney(captainFee + mateFee));
+}
+
+function clearCaptainForm(){
+  ['cap-customer','cap-phone','cap-email','cap-year','cap-make','cap-model','cap-vesselname',
+   'cap-loa','cap-loa-ft','cap-loa-in','cap-powersail','cap-pickup','cap-destination',
+   'cap-qty','cap-mates','cap-notes']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const rt = document.getElementById('cap-rate-type'); if (rt) rt.value = 'day';
+  calcCaptain();
+}
+
+async function saveCaptainBid(){
+  const customer = (document.getElementById('cap-customer').value || '').trim();
+  if (!customer) { showToast('Enter a customer name first'); return; }
+  const s = SEA();
+  const daily = document.getElementById('cap-rate-type').value !== 'hour';
+  const qty = seaNum('cap-qty');
+  const mates = Math.max(0, Math.round(seaNum('cap-mates')));
+  const capRate = daily ? (s.captainDayRate || 0) : (s.captainHourlyRate || 0);
+  const mateRate = daily ? (s.mateDayRate || 0) : (s.mateHourlyRate || 0);
+  const total = qty * capRate + mates * qty * mateRate;
+  const txt = id => (document.getElementById(id)?.value || '').trim() || null;
+  const seaData = {
+    kind: 'captain',
+    rate_type: daily ? 'day' : 'hour',
+    qty, mates,
+    captain_rate: capRate, mate_rate: mateRate,
+    captain_fee: qty * capRate, mate_fee: mates * qty * mateRate, total,
+    phone: txt('cap-phone'), email: txt('cap-email'),
+    vessel: { year: txt('cap-year'), make: txt('cap-make'), model: txt('cap-model'),
+              name: txt('cap-vesselname'), loa: txt('cap-loa'), power_sail: txt('cap-powersail') },
+    pickup: txt('cap-pickup'), destination: txt('cap-destination'),
+  };
+  try {
+    await sb('kmt_bids', 'POST', {
+      customer,
+      status: 'Pending',
+      trip_price: total || null,
+      notes: txt('cap-notes'),
+      transport_mode: 'sea',
+      sea_data: seaData,
+    });
+    showToast('Captain bid saved ✓');
+    clearCaptainForm();
+  } catch(e) {
+    showToast('Save failed — did you run 13_sea_bids.sql?');
+  }
 }
 
 function populateSeaVessels(){
@@ -5710,7 +5913,7 @@ async function saveSeaBid(){
 // ══════════════════════════════════════════════
 const FTIN_FIELDS = {
   'loa':'calc', 'beam':'calc', 'height':'calc', 'draft':null,
-  'ld-loa':null, 'ld-beam':null, 'ld-height':null, 'ld-loadedheight':null
+  'ld-loa':null, 'ld-beam':null, 'ld-height':null, 'ld-loadedheight':null, 'cap-loa':null
 };
 function ftinChanged(id){
   const ftEl=document.getElementById(id+'-ft'), inEl=document.getElementById(id+'-in');
