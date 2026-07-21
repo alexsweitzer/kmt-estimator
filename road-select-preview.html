@@ -102,6 +102,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
     <div id="selList"></div>
     <div class="row" style="margin-top:9px">
       <button class="btn primary sm" onclick="openSave()">Save as Corridor</button>
+      <button class="btn sm" onclick="undoLast()">↶ Undo Last</button>
       <button class="btn sm" onclick="clearSelection()">Clear</button>
     </div>
   </div>
@@ -124,7 +125,7 @@ let routes=[
    segs:[{name:'US 50',path:[[38.9926,-76.3616],[38.9760,-76.2900],[38.9600,-76.1900],[38.9330,-76.1000],[38.8900,-75.9800],[38.8100,-75.8900],[38.6700,-75.8000],[38.5000,-75.7000],[38.3607,-75.5994]]}],miles:62.4}
 ];
 
-let map,lines=[],selection=[],selLines=[],busy=false;
+let map,lines=[],selection=[],selLines=[],busy=false,lastAddCount=0;
 
 map=L.map('map').setView([38.90,-76.20],10);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
@@ -138,15 +139,27 @@ function segMiles(segs){return segs.reduce((t,s)=>t+miles(s.path),0);}
 function filters(){return{approved:document.getElementById('fApproved').checked,restricted:document.getElementById('fRestricted').checked,clearance:document.getElementById('fClearance').checked};}
 
 // ── Ask OpenStreetMap what road is at this point ──
+// POST to Overpass with automatic retry when rate-limited (HTTP 429)
+async function overpassFetch(q, attempt){
+  attempt = attempt || 1;
+  const res = await fetch(OVERPASS,{method:'POST',body:'data='+encodeURIComponent(q),
+    headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+  if(res.status===429 && attempt<=3){
+    const wait = attempt*2000; // 2s, 4s, 6s
+    hint('<span class="spin"></span>Road database is busy — retrying in '+(wait/1000)+'s…','active');
+    await new Promise(r=>setTimeout(r,wait));
+    return overpassFetch(q, attempt+1);
+  }
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  return res.json();
+}
+
 async function queryRoadAt(lat,lng){
   const q='[out:json][timeout:25];'
     +'way(around:40,'+lat+','+lng+')'
     +'["highway"~"^(motorway|trunk|primary|secondary|tertiary|motorway_link|trunk_link|primary_link)$"];'
     +'out geom tags;';
-  const res=await fetch(OVERPASS,{method:'POST',body:'data='+encodeURIComponent(q),
-    headers:{'Content-Type':'application/x-www-form-urlencoded'}});
-  if(!res.ok)throw new Error('HTTP '+res.status);
-  const d=await res.json();
+  const d=await overpassFetch(q);
   if(!d.elements||!d.elements.length)throw new Error('no road found there');
   return d.elements;
 }
@@ -158,10 +171,7 @@ async function queryWholeRoute(ref){
   const q='[out:json][timeout:30];'
     +'way["ref"="'+ref.replace(/"/g,'')+'"]["highway"]('+bbox+');'
     +'out geom tags;';
-  const res=await fetch(OVERPASS,{method:'POST',body:'data='+encodeURIComponent(q),
-    headers:{'Content-Type':'application/x-www-form-urlencoded'}});
-  if(!res.ok)throw new Error('HTTP '+res.status);
-  const d=await res.json();
+  const d=await overpassFetch(q);
   return (d.elements||[]);
 }
 
@@ -201,6 +211,7 @@ async function onMapClick(e){
       added++;
     });
 
+    if(added)lastAddCount=added;
     if(!added){hint('That road is already selected.','');}
     else{
       const total=segMiles(selection);
@@ -212,6 +223,8 @@ async function onMapClick(e){
     const m=String(err.message||err);
     if(/no road found/.test(m)){
       hint('No highway right there — try clicking directly on the road line, or zoom in first.','');
+    }else if(/429/.test(m)){
+      hint('<b>Road database is rate-limiting</b> — wait a few seconds between clicks, then try again.','err');
     }else{
       hint('<b>Could not reach the road database</b> ('+esc(m)+'). '
         +'If this is a preview window, outside connections may be blocked — it works on your own site.','err');
@@ -236,6 +249,13 @@ function drawSelection(){
 }
 
 function removeSel(i){selection.splice(i,1);drawSelection();if(!selection.length)hint('Click a highway on the map to select it.');}
+function undoLast(){
+  if(!lastAddCount||!selection.length)return;
+  selection.splice(selection.length-lastAddCount, lastAddCount);
+  lastAddCount=0;
+  drawSelection();
+  hint(selection.length?'Removed last selection.':'Click a highway on the map to select it.',selection.length?'active':'');
+}
 function clearSelection(){selection=[];drawSelection();hint('Click a highway on the map to select it.');}
 
 function render(){
