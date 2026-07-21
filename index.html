@@ -901,13 +901,13 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
             </div>
           </div>
         </div>
-        <div class="field">
+        <div class="field land-only">
           <label>Driver</label>
           <select id="ld-driver" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
             <option value="">— Select Driver —</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field land-only">
           <label>Co-Driver</label>
           <select id="ld-codriver" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
             <option value="">— None —</option>
@@ -1137,7 +1137,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     </div>
 
     <!-- STATE PERMITS -->
-    <div class="card">
+    <div class="card land-only" id="ld-card-permits">
       <div class="card-title">State Permits <span style="font-size:11px;font-weight:400;color:var(--text-muted);text-transform:none;letter-spacing:0">— Permit documents for this load</span></div>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.75rem">Upload state permit PDFs or images. All users can view. Only admins can upload or delete.</p>
       <div id="permits-upload-area" onclick="if(currentSession&&currentSession.role==='admin')document.getElementById('permits-file-input').click()" style="border:2px dashed var(--border);border-radius:var(--radius);padding:1.25rem;text-align:center;cursor:pointer;transition:border-color 0.15s;margin-bottom:0.75rem">
@@ -2566,6 +2566,11 @@ function calcTotalMiles() {
   document.getElementById('ld-miles-total').value = total;
 }
 
+function isSeaLoad(){
+  const m = document.getElementById('ld-mode');
+  return !!(m && m.value === 'sea');
+}
+
 function getLoadFormData() {
   // Helper: return null instead of empty string for numeric fields
   const num = (id) => { const el = document.getElementById(id); if (!el) return null; const v = el.value; if (v === '' || v === null || v === undefined || v === 'NaN') return null; const n = parseFloat(v); return isNaN(n) ? null : n; };
@@ -2578,8 +2583,8 @@ function getLoadFormData() {
     payment_type: txt('ld-payment-type'),
     truck: txt('ld-truck'),
     trailer: txt('ld-trailer'),
-    driver: txt('ld-driver'),
-    codriver: txt('ld-codriver'),
+    driver: isSeaLoad() ? (txt('cl-captain') || null) : txt('ld-driver'),
+    codriver: isSeaLoad() ? (txt('cl-mate') || null) : txt('ld-codriver'),
     status: document.getElementById('ld-status').value || 'In Progress',
     customer: txt('ld-customer'),
     contact: txt('ld-contact'),
@@ -2615,7 +2620,7 @@ function getLoadFormData() {
     sig_mechanic: txt('ld-sig-mechanic'),
     pretrip_photos: photoState.pretrip,
     posttrip_photos: photoState.posttrip,
-    state_permits: permitState,
+    state_permits: isSeaLoad() ? [] : permitState,
     customer_trailer: document.getElementById('ld-trailer-select')?.value === 'customer',
     ct_year: num('ld-ct-year'),
     ct_make: txt('ld-ct-make'),
@@ -3018,8 +3023,11 @@ function populateCLVessels(){
   const cur=sel.value;
   let list=[];
   try{ list=(SEA().vessels||[]).map(v=>v.name); }catch(e){ list=[]; }
-  sel.innerHTML='<option value="">— Select Vessel —</option>'+list.map(n=>`<option value="${escAttr(n)}">${n}</option>`).join('');
-  if(cur){ if(!list.includes(cur)) sel.insertAdjacentHTML('beforeend',`<option value="${escAttr(cur)}">${cur}</option>`); sel.value=cur; }
+  sel.innerHTML='<option value="">— Select Vessel —</option>'
+    + list.map(n=>`<option value="${escAttr(n)}">${n}</option>`).join('')
+    + '<option value="Customer Vessel">Customer Vessel</option>';
+  const known = list.concat(['Customer Vessel']);
+  if(cur){ if(!known.includes(cur)) sel.insertAdjacentHTML('beforeend',`<option value="${escAttr(cur)}">${cur}</option>`); sel.value=cur; }
 }
 
 // ── Gather / restore / reset ──
@@ -3071,6 +3079,7 @@ function onLoadModeChange(){
   document.querySelectorAll('#loads-form-view .land-only').forEach(el=>{ el.style.display = isSea ? 'none' : ''; });
   if(isSea){
     populateCLVessels();
+    prefillCaptainName();
     const ct=document.getElementById('customer-trailer-section'); if(ct) ct.style.display='none';
   } else {
     // Customer-trailer block has its own show/hide rule; don't force it open
@@ -5021,6 +5030,13 @@ function setDriverSelect(id, value){
     sel.appendChild(opt);
   }
   sel.value = v;
+}
+
+function prefillCaptainName() {
+  const el = document.getElementById('cl-captain');
+  if (!el || el.value) return;
+  const name = currentSession ? (currentSession.displayName || currentSession.username) : '';
+  if (name && Array.from(el.options).some(o => o.value === name)) el.value = name;
 }
 
 function prefillDriverName() {
