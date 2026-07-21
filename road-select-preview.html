@@ -118,14 +118,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 <script>
 const COLORS={approved:'#1e9e5a',restricted:'#cc2b2b',clearance:'#e8a020'};
 const LABELS={approved:'Approved',restricted:'Restricted',clearance:'Low Clearance'};
-// Multiple public mirrors of the same road database — if one is busy or down,
-// we automatically try the next.
-const OVERPASS_MIRRORS=[
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter'
-];
-let overpassIdx=0;
+// Road lookups go through YOUR Supabase Edge Function ("roads"), which
+// calls the road database server-side (no browser blocks), retries across
+// mirrors, and caches every result in your database.
+const ROADS_FN='https://kdtlhddkthghqllkshbb.supabase.co/functions/v1/roads';
+const ROADS_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkdGxoZGRrdGhnaHFsbGtzaGJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4OTI5NjEsImV4cCI6MjA5NTQ2ODk2MX0.fPsWsMSBgbktKbntFnXubUYW7HoP5OHZPkaMq510-vM';
 
 let routes=[
   {id:'s1',name:'US-50 — Bay Bridge to Salisbury',kind:'approved',notes:'Standard eastbound corridor.',clearance_ft:null,
@@ -140,58 +137,44 @@ map.on('click',onMapClick);
 
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
 function hint(h,cls){const e=document.getElementById('hint');e.innerHTML=h;e.className='hint'+(cls?' '+cls:'');}
+function fmtFtIn(v){const n=parseFloat(v);if(isNaN(n))return null;let ft=Math.floor(n),i=Math.round((n-ft)*12);if(i===12){ft+=1;i=0;}return ft+"'"+(i?' '+i+'\"':'');}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function miles(p){let m=0;for(let i=1;i<p.length;i++)m+=map.distance(p[i-1],p[i]);return m/1609.344;}
 function segMiles(segs){return segs.reduce((t,s)=>t+miles(s.path),0);}
 function filters(){return{approved:document.getElementById('fApproved').checked,restricted:document.getElementById('fRestricted').checked,clearance:document.getElementById('fClearance').checked};}
 
 // ── Ask OpenStreetMap what road is at this point ──
-// POST to the road database. On rate-limit (429), server overload (5xx),
-// or timeout, automatically switch to the next mirror and try again.
-async function overpassFetch(q, attempt){
-  attempt = attempt || 1;
-  const maxAttempts = 5;
-  const url = OVERPASS_MIRRORS[overpassIdx % OVERPASS_MIRRORS.length];
+// Call the roads Edge Function with a short retry for transient hiccups
+async function roadsFetch(payload, attempt){
+  attempt=attempt||1;
   try{
-    const ctrl = new AbortController();
-    const timer = setTimeout(()=>ctrl.abort(), 20000); // 20s cap per try
-    const res = await fetch(url,{method:'POST',body:'data='+encodeURIComponent(q),
-      headers:{'Content-Type':'application/x-www-form-urlencoded'},signal:ctrl.signal});
-    clearTimeout(timer);
-    if(res.status===429 || res.status>=500){
-      throw new Error('HTTP '+res.status);
-    }
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    return await res.json();
+    const res=await fetch(ROADS_FN,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+ROADS_KEY,'apikey':ROADS_KEY},
+      body:JSON.stringify(payload)
+    });
+    const d=await res.json().catch(()=>({}));
+    if(!res.ok||!d.ok)throw new Error(d.detail||d.error||('HTTP '+res.status));
+    return d.elements||[];
   }catch(err){
-    if(attempt>=maxAttempts)throw err;
-    overpassIdx++; // rotate to the next mirror
-    const wait = Math.min(attempt*1500, 5000);
-    hint('<span class="spin"></span>Road server busy — trying another mirror…','active');
-    await new Promise(r=>setTimeout(r,wait));
-    return overpassFetch(q, attempt+1);
+    if(attempt>=3)throw err;
+    hint('<span class="spin"></span>Retrying…','active');
+    await new Promise(r=>setTimeout(r,attempt*1500));
+    return roadsFetch(payload, attempt+1);
   }
 }
 
 async function queryRoadAt(lat,lng){
-  const q='[out:json][timeout:25];'
-    +'way(around:40,'+lat+','+lng+')'
-    +'["highway"~"^(motorway|trunk|primary|secondary|tertiary|motorway_link|trunk_link|primary_link)$"];'
-    +'out geom tags;';
-  const d=await overpassFetch(q);
-  if(!d.elements||!d.elements.length)throw new Error('no road found there');
-  return d.elements;
+  const els=await roadsFetch({mode:'at',lat:lat,lng:lng});
+  if(!els.length)throw new Error('no road found there');
+  return els;
 }
 
-// ── Grab every piece of a named route within the current view ──
+// Grab every piece of a named route within the current view
 async function queryWholeRoute(ref){
   const b=map.getBounds();
-  const bbox=b.getSouth()+','+b.getWest()+','+b.getNorth()+','+b.getEast();
-  const q='[out:json][timeout:30];'
-    +'way["ref"="'+ref.replace(/"/g,'')+'"]["highway"]('+bbox+');'
-    +'out geom tags;';
-  const d=await overpassFetch(q);
-  return (d.elements||[]);
+  return await roadsFetch({mode:'route',ref:ref,
+    bbox:{s:b.getSouth(),w:b.getWest(),n:b.getNorth(),e:b.getEast()}});
 }
 
 function roadLabel(el){
@@ -242,11 +225,10 @@ async function onMapClick(e){
     const m=String(err.message||err);
     if(/no road found/.test(m)){
       hint('No highway right there — try clicking directly on the road line, or zoom in first.','');
-    }else if(/429|50\d|abort/i.test(m)){
-      hint('<b>All road-database mirrors are busy right now</b> — wait ~30 seconds and click again. Your current selection is safe.','err');
     }else{
-      hint('<b>Could not reach the road database</b> ('+esc(m)+'). '
-        +'If this is a preview window, outside connections may be blocked — it works on your own site.','err');
+      hint('<b>Road lookup failed</b> ('+esc(m)+'). '
+        +'If this says 404, the "roads" Edge Function isn\'t deployed yet — see the setup note. '
+        +'Otherwise wait a moment and click again; your current selection is safe.','err');
     }
   }
   busy=false;
@@ -289,7 +271,7 @@ function render(){
         L.popup().setLatLng(ev.latlng).setContent(
           '<div style="font-size:13px;line-height:1.5"><b>'+esc(r.name)+'</b><br>'
           +'<span style="color:'+COLORS[r.kind]+';font-weight:600">'+LABELS[r.kind]+'</span>'
-          +(r.clearance_ft?'<br>Max height: <b>'+r.clearance_ft+' ft</b>':'')
+          +(r.clearance_ft?'<br>Max height: <b>'+(fmtFtIn(r.clearance_ft)||r.clearance_ft+' ft')+'</b>':'')
           +(r.miles?'<br>~'+Number(r.miles).toFixed(1)+' mi':'')
           +(r.notes?'<br><span style="color:#5c5b56">'+esc(r.notes)+'</span>':'')+'</div>').openOn(map);
       });
@@ -307,7 +289,7 @@ function renderList(){
     +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
     +'<div style="flex:1;min-width:0">'
     +'<div class="item-name"><span class="dot" style="background:'+COLORS[r.kind]+'"></span>'+esc(r.name)+'</div>'
-    +'<div class="item-sub">'+LABELS[r.kind]+(r.clearance_ft?' · max '+r.clearance_ft+' ft':'')
+    +'<div class="item-sub">'+LABELS[r.kind]+(r.clearance_ft?' · max '+(fmtFtIn(r.clearance_ft)||r.clearance_ft+' ft'):'')
       +(r.miles?' · ~'+Number(r.miles).toFixed(1)+' mi':'')
       +((r.segs&&r.segs.length>1)?' · '+r.segs.length+' segments':'')+'</div>'
     +(r.notes?'<div class="item-sub">'+esc(r.notes)+'</div>':'')
@@ -341,7 +323,7 @@ function openSave(){
     +'<option value="approved">Approved / preferred</option>'
     +'<option value="restricted">Restricted / avoid</option>'
     +'<option value="clearance">Low clearance</option></select></div>'
-    +'<div class="field" id="clWrap" style="display:none"><label>Max clearance (ft)</label><input type="number" step="0.1" id="rClear" placeholder="13.5"></div>'
+    +'<div class="field" id="clWrap" style="display:none"><label>Max clearance</label><div style="display:flex;gap:6px;align-items:center"><input type="number" id="rClearFt" placeholder="0" min="0"><span style="font-size:11px;color:var(--text-muted);font-weight:700">ft</span><input type="number" id="rClearIn" placeholder="0" min="0" max="11"><span style="font-size:11px;color:var(--text-muted);font-weight:700">in</span></div></div>'
     +'<div class="field"><label>Notes</label><textarea id="rNotes" rows="3" placeholder="Bridge height, curfew, escort requirements…"></textarea></div>'
     +'<div class="row"><button class="btn primary" onclick="doSave()">Save Corridor</button>'
     +'<button class="btn" onclick="this.closest(\'.overlay\').remove()">Cancel</button></div></div>';
@@ -355,7 +337,12 @@ function doSave(){
   let name=(document.getElementById('rName').value||'').trim();
   if(!name)name=selection[0].name+(selection.length>1?' + '+(selection.length-1)+' more':'');
   const notes=(document.getElementById('rNotes').value||'').trim()||null;
-  const cl=kind==='clearance'?(parseFloat(document.getElementById('rClear').value)||null):null;
+  let cl=null;
+  if(kind==='clearance'){
+    const cf=parseFloat(document.getElementById('rClearFt').value)||0;
+    const ci=parseFloat(document.getElementById('rClearIn').value)||0;
+    cl=(cf||ci)?Math.round((cf+ci/12)*100)/100:null;
+  }
   routes.unshift({id:'r'+Date.now(),name,kind,notes,clearance_ft:cl,
     segs:selection.map(s=>({name:s.name,path:s.path.slice()})),miles:segMiles(selection)});
   document.querySelectorAll('.overlay').forEach(o=>o.remove());
