@@ -193,6 +193,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--navy);color:white;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:500;z-index:9999;opacity:0;transition:all 0.25s;pointer-events:none;white-space:nowrap}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+/* FT/IN paired inputs */
+.ftin{display:flex;gap:6px;align-items:center}
+.ftin input{width:100%;min-width:0}
+.ftin .u{font-size:11px;color:var(--text-muted);font-weight:600;flex-shrink:0}
+
 /* CALENDAR */
 .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
 .cal-dow div{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);text-align:center;padding:4px 0}
@@ -315,11 +320,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
   <div class="card">
     <div class="card-title">Load Dimensions</div>
     <div class="form-grid">
-      <div class="field"><label>LOA (ft)</label><input type="number" id="loa" placeholder="0" oninput="calculate()"></div>
-      <div class="field"><label>Beam (ft)</label><input type="number" step="0.1" id="beam" placeholder="0" oninput="calculate()"></div>
+      <div class="field"><label>LOA</label><div class="ftin"><input type="number" id="loa-ft" placeholder="0" min="0" oninput="ftinChanged('loa')"><span class="u">ft</span><input type="number" id="loa-in" placeholder="0" min="0" max="11" oninput="ftinChanged('loa')"><span class="u">in</span></div><input type="hidden" id="loa"></div>
+      <div class="field"><label>Beam</label><div class="ftin"><input type="number" id="beam-ft" placeholder="0" min="0" oninput="ftinChanged('beam')"><span class="u">ft</span><input type="number" id="beam-in" placeholder="0" min="0" max="11" oninput="ftinChanged('beam')"><span class="u">in</span></div><input type="hidden" id="beam"></div>
       <div class="field"><label>Weight (lbs)</label><input type="number" id="weight" placeholder="0" oninput="calculate()"></div>
-      <div class="field"><label>Load Height (ft)</label><input type="number" step="0.1" id="height" placeholder="0" oninput="calculate()"></div>
-      <div class="field"><label>Draft (ft)</label><input type="number" step="0.1" id="draft" placeholder="0"></div>
+      <div class="field"><label>Load Height</label><div class="ftin"><input type="number" id="height-ft" placeholder="0" min="0" oninput="ftinChanged('height')"><span class="u">ft</span><input type="number" id="height-in" placeholder="0" min="0" max="11" oninput="ftinChanged('height')"><span class="u">in</span></div><input type="hidden" id="height"></div>
+      <div class="field"><label>Draft</label><div class="ftin"><input type="number" id="draft-ft" placeholder="0" min="0" oninput="ftinChanged('draft')"><span class="u">ft</span><input type="number" id="draft-in" placeholder="0" min="0" max="11" oninput="ftinChanged('draft')"><span class="u">in</span></div><input type="hidden" id="draft"></div>
     </div>
   </div>
   <div class="card">
@@ -716,15 +721,15 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="form-grid">
         <div class="field"><label>Make</label><input type="text" id="ld-make" placeholder="Boat make"></div>
         <div class="field"><label>Model</label><input type="text" id="ld-model" placeholder="Boat model"></div>
-        <div class="field"><label>LOA (ft)</label><input type="number" step="0.1" id="ld-loa" placeholder="0"></div>
-        <div class="field"><label>Beam (ft)</label><input type="number" step="0.1" id="ld-beam" placeholder="0"></div>
+        <div class="field"><label>LOA</label><div class="ftin"><input type="number" id="ld-loa-ft" placeholder="0" min="0" oninput="ftinChanged('ld-loa')"><span class="u">ft</span><input type="number" id="ld-loa-in" placeholder="0" min="0" max="11" oninput="ftinChanged('ld-loa')"><span class="u">in</span></div><input type="hidden" id="ld-loa"></div>
+        <div class="field"><label>Beam</label><div class="ftin"><input type="number" id="ld-beam-ft" placeholder="0" min="0" oninput="ftinChanged('ld-beam')"><span class="u">ft</span><input type="number" id="ld-beam-in" placeholder="0" min="0" max="11" oninput="ftinChanged('ld-beam')"><span class="u">in</span></div><input type="hidden" id="ld-beam"></div>
         <div class="field"><label>Color</label><input type="text" id="ld-color" placeholder="Boat color"></div>
         <div class="field"><label>Name</label><input type="text" id="ld-boatname" placeholder="Boat name"></div>
         <div class="field"><label>Weight (lbs)</label><input type="number" id="ld-weight" placeholder="0"></div>
-        <div class="field"><label>Height (ft)</label><input type="number" step="0.1" id="ld-height" placeholder="0"></div>
+        <div class="field"><label>Height</label><div class="ftin"><input type="number" id="ld-height-ft" placeholder="0" min="0" oninput="ftinChanged('ld-height')"><span class="u">ft</span><input type="number" id="ld-height-in" placeholder="0" min="0" max="11" oninput="ftinChanged('ld-height')"><span class="u">in</span></div><input type="hidden" id="ld-height"></div>
         <div class="field"><label>Hull ID</label><input type="text" id="ld-hullid" placeholder="Hull ID number"></div>
         <div class="field"><label>Reg / Doc #</label><input type="text" id="ld-regdoc" placeholder="Registration or doc #"></div>
-        <div class="field"><label>Loaded Height (ft)</label><input type="number" step="0.1" id="ld-loadedheight" placeholder="0"></div>
+        <div class="field"><label>Loaded Height</label><div class="ftin"><input type="number" id="ld-loadedheight-ft" placeholder="0" min="0" oninput="ftinChanged('ld-loadedheight')"><span class="u">ft</span><input type="number" id="ld-loadedheight-in" placeholder="0" min="0" max="11" oninput="ftinChanged('ld-loadedheight')"><span class="u">in</span></div><input type="hidden" id="ld-loadedheight"></div>
       </div>
     </div>
 
@@ -1816,7 +1821,7 @@ function editBid(id){
   const sv=(i,v)=>{const el=document.getElementById(i);if(el)el.value=v||''};
   sv('bidDate',b.bid_date);sv('customer',b.customer);sv('customer-phone',b.customer_phone);sv('customer-email',b.customer_email);
   applyPhoneFormat('customer-phone');
-  sv('loa',b.loa);sv('beam',b.beam);sv('weight',b.weight_lbs);sv('height',b.height_ft);sv('draft',b.draft_ft);
+  sv('loa',b.loa);sv('beam',b.beam);sv('weight',b.weight_lbs);sv('height',b.height_ft);sv('draft',b.draft_ft);syncAllFtIn();
   sv('boat-year',b.boat_year);sv('boat-make',b.boat_make);sv('boat-model',b.boat_model);
   sv('pickup-name',b.pickup_name);sv('pickup-street',b.pickup_street);sv('pickup-city',b.pickup_city);sv('pickup-state',b.pickup_state);sv('pickup-zip',b.pickup_zip);
   sv('drop-name',b.drop_name);sv('drop-street',b.drop_street);sv('drop-city',b.drop_city);sv('drop-state',b.drop_state);sv('drop-zip',b.drop_zip);
@@ -1837,7 +1842,7 @@ async function deleteBid(id){
 }
 function clearForm(){
   delete document.getElementById('section-estimator').dataset.editId;
-  ['customer','customer-phone','customer-email','boat-year','boat-make','boat-model','loa','beam','weight','height','draft','pickup-name','pickup-street','pickup-city','pickup-state','pickup-zip','drop-name','drop-street','drop-city','drop-state','drop-zip','notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+  ['customer','customer-phone','customer-email','boat-year','boat-make','boat-model','loa','beam','weight','height','draft','pickup-name','pickup-street','pickup-city','pickup-state','pickup-zip','drop-name','drop-street','drop-city','drop-state','drop-zip','notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});syncAllFtIn();
   ['tripMiles','deadheadOut','deadheadBack','overnights','tollsOut','tollsBack','specialTolls','permitStates','pilotCount','pilotMiles','customTripPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=0});
   document.getElementById('chkLoad').checked=true;document.getElementById('chkUnload').checked=true;syncChk();
   clearOsowRows();
@@ -2355,7 +2360,7 @@ function editLoad(id) {
   sv('ld-customer', l.customer); sv('ld-contact', l.contact); applyPhoneFormat('ld-contact');
   sv('ld-make', l.make); sv('ld-model', l.model); sv('ld-loa', l.loa); sv('ld-beam', l.beam);
   sv('ld-color', l.color); sv('ld-boatname', l.boatname); sv('ld-weight', l.weight);
-  sv('ld-height', l.height); sv('ld-hullid', l.hullid); sv('ld-regdoc', l.regdoc);
+  sv('ld-height', l.height); sv('ld-hullid', l.hullid); sv('ld-regdoc', l.regdoc); syncAllFtIn();
   sv('ld-loadedheight', l.loaded_height);
   sv('ld-pickup-name', l.pickup_name); sv('ld-pickup-street', l.pickup_street); sv('ld-pickup-city', l.pickup_city);
   sv('ld-delivery-name', l.delivery_name); sv('ld-delivery-street', l.delivery_street); sv('ld-delivery-city', l.delivery_city);
@@ -2432,7 +2437,7 @@ function clearLoadForm() {
    'ld-hullid','ld-regdoc','ld-loadedheight','ld-pickup-name','ld-pickup-street','ld-pickup-city',
    'ld-delivery-name','ld-delivery-street','ld-delivery-city','ld-miles-start','ld-miles-stop',
    'ld-miles-total','ld-notes','ld-damage-notes','ld-defect-status','ld-sig-driver','ld-sig-mechanic'
-  ].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ].forEach(id => { const el = document.getElementById(id); syncAllFtIn(); if (el) el.value = ''; });
   document.getElementById('ld-status').value = 'In Progress';
   document.getElementById('ld-vehicle-satisfactory').checked = false;
   const trailSel = document.getElementById('ld-trailer-select'); if(trailSel) trailSel.value='';
@@ -2479,6 +2484,7 @@ function prefillFromBid() {
   sv('ld-weight', b.weight_lbs);
   sv('ld-height', b.height_ft);
   sv('ld-loadedheight', b.height_ft);
+  syncAllFtIn();
   // Pickup
   sv('ld-pickup-name', b.pickup_name||b.pickup);
   sv('ld-pickup-street', b.pickup_street);
@@ -2603,7 +2609,7 @@ function viewLockedLoad(id) {
   sv('ld-customer', l.customer); sv('ld-contact', l.contact); applyPhoneFormat('ld-contact');
   sv('ld-make', l.make); sv('ld-model', l.model); sv('ld-loa', l.loa); sv('ld-beam', l.beam);
   sv('ld-color', l.color); sv('ld-boatname', l.boatname); sv('ld-weight', l.weight);
-  sv('ld-height', l.height); sv('ld-hullid', l.hullid); sv('ld-regdoc', l.regdoc);
+  sv('ld-height', l.height); sv('ld-hullid', l.hullid); sv('ld-regdoc', l.regdoc); syncAllFtIn();
   sv('ld-loadedheight', l.loaded_height);
   sv('ld-pickup-name', l.pickup_name); sv('ld-pickup-street', l.pickup_street); sv('ld-pickup-city', l.pickup_city);
   sv('ld-delivery-name', l.delivery_name); sv('ld-delivery-street', l.delivery_street); sv('ld-delivery-city', l.delivery_city);
@@ -4793,7 +4799,7 @@ async function exportLoadPDF(id, ev){
   kvGrid([['Date', l.date], ['Status', l.status], ['Trip Price', fmtMoney(l.trip_price)], ['Payment Type', l.payment_type], ['Truck', l.truck], ['Trailer', l.trailer], ['Driver', l.driver], ['Co-Driver', l.codriver], ['Customer', l.customer], ['Contact', l.contact]]);
 
   sectionHeader('Boat / Cargo');
-  kvGrid([['Make', l.make], ['Model', l.model], ['Boat Name', l.boatname], ['Color', l.color], ['LOA (ft)', l.loa], ['Beam (ft)', l.beam], ['Weight (lbs)', l.weight], ['Height (ft)', l.height], ['Loaded Height (ft)', l.loaded_height], ['Hull ID', l.hullid], ['Reg / Doc #', l.regdoc]]);
+  kvGrid([['Make', l.make], ['Model', l.model], ['Boat Name', l.boatname], ['Color', l.color], ['LOA', fmtFtIn(l.loa) || l.loa], ['Beam', fmtFtIn(l.beam) || l.beam], ['Weight (lbs)', l.weight], ['Height', fmtFtIn(l.height) || l.height], ['Loaded Height', fmtFtIn(l.loaded_height) || l.loaded_height], ['Hull ID', l.hullid], ['Reg / Doc #', l.regdoc]]);
 
   if (l.customer_trailer){
     sectionHeader('Customer Trailer');
@@ -5065,7 +5071,7 @@ function renderRoutes(){
         '<div style="font-size:13px;line-height:1.5;max-width:240px">',
         '<b>' + escAttr(r.name) + '</b><br>',
         '<span style="color:' + color + ';font-weight:600">' + (ROUTE_LABELS[r.kind] || r.kind) + '</span>',
-        r.clearance_ft ? '<br>Max height: <b>' + r.clearance_ft + ' ft</b>' : '',
+        r.clearance_ft ? '<br>Max height: <b>' + (fmtFtIn(r.clearance_ft) || r.clearance_ft + ' ft') + '</b>' : '',
         r.miles ? '<br>~' + Number(r.miles).toFixed(1) + ' mi' : '',
         r.notes ? '<br><span style="color:#5c5b56">' + escAttr(r.notes) + '</span>' : '',
         '</div>'
@@ -5094,7 +5100,7 @@ function renderRouteList(){
       + '<div class="bid-card-top"><div style="flex:1;min-width:0">'
       + '<div class="bid-card-name"><span class="cal-dot" style="background:' + color + ';display:inline-block;margin-right:6px"></span>' + escAttr(r.name) + '</div>'
       + '<div class="bid-card-sub">' + (ROUTE_LABELS[r.kind] || r.kind)
-        + (r.clearance_ft ? ' · max ' + r.clearance_ft + ' ft' : '')
+        + (r.clearance_ft ? ' · max ' + (fmtFtIn(r.clearance_ft) || r.clearance_ft + ' ft') : '')
         + (r.miles ? ' · ~' + Number(r.miles).toFixed(1) + ' mi' : '') + '</div>'
       + (r.notes ? '<div class="bid-card-sub" style="margin-top:2px">' + escAttr(r.notes) + '</div>' : '')
       + '</div>'
@@ -5254,7 +5260,7 @@ function openRouteSaveModal(){
     + '<option value="restricted">Restricted / avoid</option>'
     + '<option value="clearance">Low clearance</option>'
     + '</select></div>'
-    + '<div class="field full" id="rt-clearance-wrap" style="display:none"><label>Max clearance (ft)</label><input type="number" step="0.1" id="rt-clearance" placeholder="e.g. 13.5"></div>'
+    + '<div class="field full" id="rt-clearance-wrap" style="display:none"><label>Max clearance</label><div class="ftin"><input type="number" id="rt-clearance-ft" placeholder="0" min="0"><span class="u">ft</span><input type="number" id="rt-clearance-in" placeholder="0" min="0" max="11"><span class="u">in</span></div></div>'
     + '<div class="field full"><label>Notes</label><textarea id="rt-notes" rows="3" placeholder="Bridge height, curfew, escort requirements, etc."></textarea></div>'
     + '<div class="btn-row"><button class="btn primary" id="rt-save-btn" onclick="saveRoute()">Save Route</button>'
     + '<button class="btn" onclick="this.closest(\'.overlay\').remove();document.body.style.overflow=\'\'">Cancel</button></div>'
@@ -5278,9 +5284,12 @@ async function saveRoute(){
     name = (ROUTE_LABELS[kind] || 'Route') + ' segment' + (mi0 != null ? ' · ' + mi0.toFixed(1) + ' mi' : '');
   }
   const notes = (document.getElementById('rt-notes').value || '').trim() || null;
-  const clearance = kind === 'clearance'
-    ? (parseFloat(document.getElementById('rt-clearance').value) || null)
-    : null;
+  let clearance = null;
+  if (kind === 'clearance') {
+    const cf = parseFloat(document.getElementById('rt-clearance-ft').value) || 0;
+    const ci = parseFloat(document.getElementById('rt-clearance-in').value) || 0;
+    clearance = (cf || ci) ? Math.round((cf + ci/12) * 100) / 100 : null;
+  }
   const mi = mi0;
   const btn = document.getElementById('rt-save-btn');
   if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
@@ -5312,6 +5321,48 @@ async function deleteRoute(id){
     renderRoutes();
     showToast('Route deleted');
   } catch(e){ showToast('Delete failed'); }
+}
+
+// ══════════════════════════════════════════════
+// FEET + INCHES INPUTS
+// Visible ft/in pairs backed by a hidden decimal-feet field (the original id),
+// so all storage and calculations keep using decimal feet unchanged.
+// ══════════════════════════════════════════════
+const FTIN_FIELDS = {
+  'loa':'calc', 'beam':'calc', 'height':'calc', 'draft':null,
+  'ld-loa':null, 'ld-beam':null, 'ld-height':null, 'ld-loadedheight':null
+};
+function ftinChanged(id){
+  const ftEl=document.getElementById(id+'-ft'), inEl=document.getElementById(id+'-in');
+  const hid=document.getElementById(id);
+  if(!hid) return;
+  const ft=parseFloat(ftEl&&ftEl.value)||0;
+  let inch=parseFloat(inEl&&inEl.value)||0;
+  if(inch>11){inch=11;if(inEl)inEl.value=11;}
+  const empty=(ftEl&&ftEl.value==='')&&(inEl&&inEl.value==='');
+  hid.value = empty ? '' : String(Math.round((ft+inch/12)*10000)/10000);
+  if(FTIN_FIELDS[id]==='calc' && typeof calculate==='function') calculate();
+}
+function syncFtIn(id){
+  const hid=document.getElementById(id);
+  const ftEl=document.getElementById(id+'-ft'), inEl=document.getElementById(id+'-in');
+  if(!hid||!ftEl||!inEl) return;
+  const v=parseFloat(hid.value);
+  if(isNaN(v)){ftEl.value='';inEl.value='';return;}
+  let ft=Math.floor(v);
+  let inch=Math.round((v-ft)*12);
+  if(inch===12){ft+=1;inch=0;}
+  ftEl.value=ft;
+  inEl.value=inch===0?'':inch;
+}
+function syncAllFtIn(){ Object.keys(FTIN_FIELDS).forEach(syncFtIn); }
+// Pretty-print decimal feet as 13' 6" for lists, popups, and PDFs
+function fmtFtIn(v){
+  const n=parseFloat(v);
+  if(isNaN(n)) return null;
+  let ft=Math.floor(n), inch=Math.round((n-ft)*12);
+  if(inch===12){ft+=1;inch=0;}
+  return ft+"'" + (inch? ' '+inch+'"' : '');
 }
 
 // ══════════════════════════════════════════════
