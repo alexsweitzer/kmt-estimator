@@ -158,8 +158,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 .badge.gray{background:var(--gray-100);color:var(--gray-600)}
 
 /* SEARCH */
-.search-row{display:flex;gap:8px;margin-bottom:1rem}
-.search-row input{flex:1;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:14px;color:var(--text);background:white;-webkit-appearance:none}
+.search-row{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap}
+.search-row input{flex:1;min-width:180px;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:14px;color:var(--text);background:white;-webkit-appearance:none}
 .search-row select{padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none;min-width:130px}
 
 /* MODAL */
@@ -329,6 +329,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
         <div class="field"><label>Pickup / Hookup Time (hrs)</label><input type="number" step="0.25" id="sea-pickup-hrs" placeholder="0" oninput="calcSea()"></div>
         <div class="field"><label>Delivery Time (hrs)</label><input type="number" step="0.25" id="sea-delivery-hrs" placeholder="0" oninput="calcSea()"></div>
         <div class="field"><label>Customer</label><input type="text" id="sea-customer" placeholder="Customer name"></div>
+        <div class="field"><label>Estimate Date</label><input type="date" id="sea-date"></div>
       </div>
     </div>
 
@@ -374,6 +375,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
           <div class="field"><label>Customer Name</label><input type="text" id="cap-customer" placeholder="Customer name"></div>
           <div class="field"><label>Phone</label><input type="tel" id="cap-phone" placeholder="(410) 555-0100"></div>
           <div class="field"><label>Email</label><input type="email" id="cap-email" placeholder="name@email.com"></div>
+          <div class="field"><label>Estimate Date</label><input type="date" id="cap-date"></div>
         </div>
       </div>
       <div class="card">
@@ -573,6 +575,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 <div class="section" id="section-bids">
   <div class="search-row">
     <input type="text" id="searchInput" placeholder="Search customer, boat, location..." oninput="renderBids()">
+    <select id="filterType" onchange="renderBids()">
+      <option value="">All types</option>
+      <option value="truck">🚚 Truck</option>
+      <option value="boat">⛵ Boat</option>
+      <option value="captain">🧭 Captain</option>
+    </select>
     <select id="filterStatus" onchange="renderBids()">
       <option value="">All statuses</option>
       <option>Estimate</option><option>Bid Sent</option><option>Accepted</option><option>Declined</option><option>Completed</option>
@@ -1619,6 +1627,19 @@ function bootApp(){
   loadOsowRules();
   loadVehiclePositions();
   loadBidsFromDB();
+  initEstimateDates();
+}
+
+// Local-time YYYY-MM-DD (toISOString would roll to tomorrow after 8pm ET)
+function todayISO(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function initEstimateDates(){
+  ['bidDate','sea-date','cap-date'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el && !el.value) el.value=todayISO();
+  });
 }
 
 // ══════════════════════════════════════════════
@@ -1940,12 +1961,45 @@ async function saveBid(){
   btn.textContent='💾 Save Bid';btn.disabled=false;
 }
 const statusBadgeClass={Estimate:'gray','Bid Sent':'blue',Accepted:'green',Declined:'red',Completed:'navy'};
+
+// ── Bid type: derived from existing columns, so old rows tag correctly too ──
+function bidType(b){
+  if(b && b.transport_mode==='sea') return (b.sea_data && b.sea_data.kind==='captain') ? 'captain' : 'boat';
+  return 'truck';
+}
+const BID_TYPE_META={
+  truck:{label:'Truck',icon:'🚚',cls:'navy'},
+  boat:{label:'Boat',icon:'⛵',cls:'blue'},
+  captain:{label:'Captain',icon:'🧭',cls:'green'}
+};
+// Two summary lines per card, appropriate to the bid type
+function bidSubline(b){
+  const t=bidType(b), sd=b.sea_data||{};
+  if(t==='captain'){
+    const v=sd.vessel||{};
+    const boat=[v.year,v.make,v.model].filter(Boolean).join(' ')||v.name||'—';
+    const qty=sd.qty||0, unit=sd.rate_type==='hour'?'hr':'day';
+    const crew=qty+' '+unit+(qty===1?'':'s')+(sd.mates?' · '+sd.mates+' mate'+(sd.mates===1?'':'s'):'');
+    return [boat+(v.name&&v.make?' “'+v.name+'”':''), (sd.pickup||'?')+' → '+(sd.destination||'?')+' · '+crew];
+  }
+  if(t==='boat'){
+    return ['Tow: '+(sd.vessel||'—'),
+            (sd.trip_nm||0)+' nm trip · '+((sd.deadhead_out_nm||0)+(sd.deadhead_back_nm||0))+' nm deadhead'];
+  }
+  return [[b.boat_year,b.boat_make,b.boat_model].filter(Boolean).join(' ')||b.boat||'—',
+          (b.pickup||'?')+' → '+(b.drop_location||'?')+' · '+(b.trip_miles||0)+' mi'];
+}
+
 function renderBids(){
   const q=(document.getElementById('searchInput').value||'').toLowerCase();
   const sf=document.getElementById('filterStatus').value;
+  const tf=(document.getElementById('filterType')||{}).value||'';
   const filtered=bids.filter(b=>{
-    const txt=[b.customer,b.boat,b.pickup,b.drop_location,b.notes].join(' ').toLowerCase();
-    return (!q||txt.includes(q))&&(!sf||b.status===sf);
+    const sd=b.sea_data||{}, sv=sd.vessel||{};
+    const txt=[b.customer,b.boat,b.pickup,b.drop_location,b.notes,
+               sd.pickup,sd.destination,sv.name,sv.make,sv.model,
+               (typeof sd.vessel==='string'?sd.vessel:null)].filter(Boolean).join(' ').toLowerCase();
+    return (!q||txt.includes(q))&&(!sf||b.status===sf)&&(!tf||bidType(b)===tf);
   });
   const statsEl=document.getElementById('bidsStats');
   if(filtered.length){
@@ -1957,19 +2011,23 @@ function renderBids(){
   if(!filtered.length){listEl.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><p>${bids.length?'No bids match your search.':'No bids yet. Create an estimate and tap Save Bid.'}</p></div>`;return;}
   listEl.innerHTML=filtered.map(b=>{
     const bc=statusBadgeClass[b.status]||'gray';
+    const tm=BID_TYPE_META[bidType(b)];
+    const lines=bidSubline(b);
+    const hasProfit=b.profit!==null&&b.profit!==undefined&&b.profit!=='';
     return `<div class="bid-card" onclick="viewBid('${b.id}')">
       <div class="bid-card-top">
         <div style="flex:1;min-width:0">
-          <div class="bid-card-name">${b.transport_mode==='sea' ? ((b.sea_data&&b.sea_data.kind==='captain')?'🧭 ':'⛵ ') : ''}${b.customer||'Unnamed'}</div>
-          <div class="bid-card-sub">${[b.boat_year,b.boat_make,b.boat_model].filter(Boolean).join(' ')||b.boat||'—'} · ${b.pickup||'?'} → ${b.drop_location||'?'}</div>
-          <div class="bid-card-sub" style="margin-top:1px">${b.trip_miles||0} mi · ${b.bid_date||'No date'}</div>
+          <div class="bid-card-name">${tm.icon} ${b.customer||'Unnamed'}</div>
+          <div class="bid-card-sub">${lines[0]}</div>
+          <div class="bid-card-sub" style="margin-top:1px">${lines[1]}</div>
+          <div class="bid-card-sub" style="margin-top:1px">📅 ${b.bid_date||'No date'}</div>
         </div>
         <div style="flex-shrink:0;margin-left:12px;text-align:right">
           <div class="bid-card-price">${fmt(b.trip_price||0)}</div>
-          <div class="bid-card-profit" style="color:${(b.profit||0)>=0?'var(--green)':'var(--red)'}">${(b.profit||0)<0?'−':'+'}${fmt(Math.abs(b.profit||0))}</div>
+          ${hasProfit?`<div class="bid-card-profit" style="color:${b.profit>=0?'var(--green)':'var(--red)'}">${b.profit<0?'−':'+'}${fmt(Math.abs(b.profit))}</div>`:''}
         </div>
       </div>
-      <div class="bid-card-meta"><span class="badge ${bc}">${b.status}</span>${b.notes?`<span style="font-size:12px;color:var(--text-muted)">${b.notes}</span>`:''}</div>
+      <div class="bid-card-meta"><span class="badge ${tm.cls}">${tm.label}</span><span class="badge ${bc}">${b.status}</span>${b.notes?`<span style="font-size:12px;color:var(--text-muted)">${b.notes}</span>`:''}</div>
     </div>`;
   }).join('');
 }
@@ -2061,7 +2119,7 @@ function clearForm(){
   clearOsowRows();
   document.getElementById('customerTrailer').value='N';document.getElementById('ratePerMile').value='3.75';
   document.getElementById('status').value='Estimate';
-  document.getElementById('bidDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('bidDate').value=todayISO();
   calculate();
 }
 function exportCSV(){
@@ -5762,6 +5820,7 @@ function clearCaptainForm(){
    'cap-qty','cap-mates','cap-notes']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const rt = document.getElementById('cap-rate-type'); if (rt) rt.value = 'day';
+  const cd = document.getElementById('cap-date'); if (cd) cd.value = todayISO();
   calcCaptain();
 }
 
@@ -5790,16 +5849,22 @@ async function saveCaptainBid(){
   try {
     await sb('kmt_bids', 'POST', {
       customer,
-      status: 'Pending',
+      bid_date: document.getElementById('cap-date').value || todayISO(),
+      status: 'Estimate',
       trip_price: total || null,
       notes: txt('cap-notes'),
       transport_mode: 'sea',
       sea_data: seaData,
+      created_by: currentSession.username,
     });
     showToast('Captain bid saved ✓');
     clearCaptainForm();
+    await loadBidsFromDB();
+    showTab('bids');
   } catch(e) {
-    showToast('Save failed — did you run 13_sea_bids.sql?');
+    const msg = e && e.message ? e.message : String(e);
+    alert('Captain bid save error:\n\n' + msg + '\n\nIf this mentions a missing column, run 13_sea_bids.sql.');
+    showToast('Save failed: ' + msg.slice(0,80));
   }
 }
 
@@ -5866,6 +5931,7 @@ function clearSeaForm(){
   ['sea-dh-out','sea-dh-back','sea-trip','sea-pickup-hrs','sea-delivery-hrs','sea-customer','sea-final-fee','sea-notes']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const r = document.getElementById('sea-rate'); if (r) r.value = '28';
+  const sd2 = document.getElementById('sea-date'); if (sd2) sd2.value = todayISO();
   seaFeeTouched = false;
   calcSea();
 }
@@ -5893,16 +5959,22 @@ async function saveSeaBid(){
   try {
     await sb('kmt_bids', 'POST', {
       customer,
-      status: 'Pending',
+      bid_date: document.getElementById('sea-date').value || todayISO(),
+      status: 'Estimate',
       trip_price: fee || null,
       notes: (document.getElementById('sea-notes').value || '').trim() || null,
       transport_mode: 'sea',
       sea_data: seaData,
+      created_by: currentSession.username,
     });
     showToast('Sea bid saved ✓');
     clearSeaForm();
+    await loadBidsFromDB();
+    showTab('bids');
   } catch(e) {
-    showToast('Save failed — did you run 13_sea_bids.sql?');
+    const msg = e && e.message ? e.message : String(e);
+    alert('Sea bid save error:\n\n' + msg + '\n\nIf this mentions a missing column, run 13_sea_bids.sql.');
+    showToast('Save failed: ' + msg.slice(0,80));
   }
 }
 
