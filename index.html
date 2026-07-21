@@ -285,6 +285,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
   <button class="tab-btn" id="tab-calendar" onclick="showTab('calendar')">Calendar</button>
   <button class="tab-btn" id="tab-tracking" onclick="showTab('tracking')">Tracking</button>
   <button class="tab-btn" id="tab-permits" onclick="showTab('permits')">Permits</button>
+  <button class="tab-btn" id="tab-routes" onclick="showTab('routes')">Routes</button>
   <button class="tab-btn" id="tab-equipment" onclick="showTab('equipment')">Equipment</button>
   <button class="tab-btn" id="tab-profile" onclick="showTab('profile')">Profile</button>
   <button class="tab-btn" id="tab-admin" onclick="showTab('admin')">Admin</button>
@@ -1014,6 +1015,39 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
   </div>
 
   <div id="rpt-empty" style="display:none" class="empty"><div class="empty-icon">📊</div><p>Run a report to see results.</p></div>
+  <div style="height:1rem"></div>
+</div>
+
+
+<!-- ══ ROUTES ══ -->
+<div class="section" id="section-routes">
+  <div class="card">
+    <div class="card-title">Oversize Route Map</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:0.75rem">Tap two points on a highway and the line follows the actual road between them. Keep tapping to extend. Reference only — this doesn't affect estimates.</p>
+
+    <!-- Draw controls -->
+    <div id="routeDrawBar" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:0.75rem">
+      <button class="btn accent sm" id="rtTraceBtn" onclick="startRouteDraw()">📍 Trace Highway</button>
+      <button class="btn sm" id="rtUndoBtn" onclick="undoRoutePoint()" style="display:none">↶ Undo</button>
+      <button class="btn sm danger" id="rtCancelBtn" onclick="cancelRouteDraw()" style="display:none">Cancel</button>
+      <button class="btn sm primary" id="rtSaveBtn" onclick="openRouteSaveModal()" style="display:none">Save</button>
+    </div>
+    <div id="rtHint" style="font-size:12px;color:var(--text-muted);margin-bottom:0.5rem"></div>
+
+    <!-- Filter legend -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:0.75rem" id="routeLegend">
+      <label class="cal-chip" style="cursor:pointer"><input type="checkbox" id="rtShowApproved" checked onchange="renderRoutes()" style="margin-right:4px"><span class="cal-dot" style="background:#1e9e5a"></span> Approved</label>
+      <label class="cal-chip" style="cursor:pointer"><input type="checkbox" id="rtShowRestricted" checked onchange="renderRoutes()" style="margin-right:4px"><span class="cal-dot" style="background:#cc2b2b"></span> Restricted</label>
+      <label class="cal-chip" style="cursor:pointer"><input type="checkbox" id="rtShowClearance" checked onchange="renderRoutes()" style="margin-right:4px"><span class="cal-dot" style="background:#e8a020"></span> Low Clearance</label>
+    </div>
+
+    <div id="routeMap" style="width:100%;height:min(60vh,520px);border-radius:var(--radius);border:1px solid var(--border);background:var(--gray-100)"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Saved Routes</div>
+    <div id="routeList"></div>
+  </div>
   <div style="height:1rem"></div>
 </div>
 
@@ -3222,6 +3256,7 @@ function showTab(name){
   }
   if(name==='loads'){loadLogsFromDB();showLoadsSubTab('list');loadVehiclePositions().then(()=>{ if(document.getElementById('section-loads')&&document.getElementById('section-loads').classList.contains('active')) renderLoadsList(); });}
   if(name==='calendar'){ enterCalendar(); }
+  if(name==='routes'){ enterRoutes(); }
   if(name==='tracking'){ enterTracking(); }
   if(name==='equipment'){loadEquipmentFromDB();}
   if(name==='profile'){
@@ -3278,7 +3313,7 @@ function loadGmapsScript(key) {
   if (existing) existing.remove();
   const script = document.createElement('script');
   script.id = 'gmaps-script';
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&callback=onGmapsLoaded`;
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places,geometry&callback=onGmapsLoaded`;
   script.async = true;
   script.defer = true;
   script.onerror = () => {
@@ -4874,6 +4909,54 @@ async function exportLoadPDF(id, ev){
   await photoSection('Pre-Trip Photos', l.pretrip_photos);
   await photoSection('Post-Trip Photos', l.posttrip_photos);
 
+  // ── State Permits (attachments) ──
+  if (l.state_permits && l.state_permits.length){
+    const isImg = (u, n) => /\.(jpe?g|png|gif|webp|heic)$/i.test(String(n || u || ''));
+    const imgPermits = l.state_permits.filter(p => isImg(p.url, p.name));
+    const pdfPermits = l.state_permits.filter(p => !isImg(p.url, p.name));
+
+    // Image permits: embed like photos, one per row (permits are usually portrait/full-page)
+    if (imgPermits.length){
+      sectionHeader('State Permits — Images');
+      const cellW = PW - 2*M;
+      const cellH = cellW * 1.15; // taller: permit docs are portrait
+      for (const p of imgPermits){
+        const data = await fetchImg(p.url);
+        needSpace(cellH + 20);
+        doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...NAVY);
+        doc.text(V(p.name), M, y); y += 12;
+        if (data){
+          try { doc.addImage(data, 'JPEG', M, y, cellW, cellH); }
+          catch(e){ try { doc.addImage(data, 'PNG', M, y, cellW, cellH); } catch(e2){ doc.setFontSize(8); doc.setTextColor(...GRAY); doc.text('[permit image could not be embedded]', M, y + 20); } }
+        } else {
+          doc.setDrawColor(...LINE); doc.rect(M, y, cellW, cellH);
+          doc.setFontSize(8); doc.setTextColor(...GRAY); doc.text('[permit image unavailable]', M + 8, y + 20);
+        }
+        y += cellH + 16;
+      }
+    }
+
+    // PDF permits: can't be merged inline — list them by name + date
+    if (pdfPermits.length){
+      sectionHeader('State Permits — PDF Attachments');
+      doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...GRAY);
+      needSpace(14);
+      doc.text('The following permit PDFs are attached to this load in the portal (open the load to view/download):', M, y);
+      y += 16;
+      pdfPermits.forEach((p, i) => {
+        needSpace(14);
+        doc.setTextColor(30,30,28); doc.setFont('helvetica','bold'); doc.setFontSize(10);
+        doc.text('• ' + V(p.name), M + 6, y);
+        if (p.uploaded_at){
+          doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+          doc.text('uploaded ' + new Date(p.uploaded_at).toLocaleDateString(), PW - M, y, { align: 'right' });
+        }
+        y += 15;
+      });
+      y += 6;
+    }
+  }
+
   const pages = doc.internal.getNumberOfPages();
   for (let i = 1; i <= pages; i++){
     doc.setPage(i);
@@ -4894,6 +4977,334 @@ async function exportLoadPDF(id, ev){
     if (img && img.src) window.__kmtLogoData = img.src;
   } catch(e){}
 })();
+
+// ══════════════════════════════════════════════
+// OVERSIZE ROUTE MAP
+// ══════════════════════════════════════════════
+let routeMap = null, routeList = [], routePolys = [], routeInfo = null;
+let directionsService = null;
+let rtMode = null;              // null | 'trace' | 'free'
+let rtPoints = [];              // clicked points (LatLng literals)
+let rtDraftPath = [];           // the resolved path (road-snapped in trace mode)
+let rtDraftPoly = null, rtMarkers = [], rtClickListener = null;
+
+const ROUTE_COLORS = { approved: '#1e9e5a', restricted: '#cc2b2b', clearance: '#e8a020' };
+const ROUTE_LABELS = { approved: 'Approved', restricted: 'Restricted', clearance: 'Low Clearance' };
+
+function initRouteMap(){
+  const el = document.getElementById('routeMap');
+  if (!el || !window.google || !google.maps) return null;
+  if (routeMap) return routeMap;
+  routeMap = new google.maps.Map(el, {
+    center: { lat: 38.95, lng: -76.25 },   // Kent Island / Chesapeake area
+    zoom: 8,
+    mapTypeControl: true,
+    streetViewControl: false,
+    fullscreenControl: true,
+  });
+  routeInfo = new google.maps.InfoWindow();
+  directionsService = new google.maps.DirectionsService();
+  return routeMap;
+}
+
+async function enterRoutes(){
+  if (!window.google || !google.maps) {
+    setTimeout(enterRoutes, 400);   // Maps still loading
+    return;
+  }
+  initRouteMap();
+  await loadRoutesFromDB();
+  renderRoutes();
+}
+
+async function loadRoutesFromDB(){
+  try { routeList = await sb('kmt_routes?select=*&order=created_at.desc') || []; }
+  catch(e){ routeList = []; }
+}
+
+function clearRoutePolys(){
+  routePolys.forEach(p => p.setMap(null));
+  routePolys = [];
+}
+
+function routeFilters(){
+  return {
+    approved:  (document.getElementById('rtShowApproved')||{}).checked !== false,
+    restricted:(document.getElementById('rtShowRestricted')||{}).checked !== false,
+    clearance: (document.getElementById('rtShowClearance')||{}).checked !== false,
+  };
+}
+
+function renderRoutes(){
+  if (!routeMap) return;
+  clearRoutePolys();
+  const f = routeFilters();
+
+  routeList.forEach(r => {
+    if (!f[r.kind]) return;
+    if (!Array.isArray(r.path) || r.path.length < 2) return;
+    const color = ROUTE_COLORS[r.kind] || '#334155';
+    const poly = new google.maps.Polyline({
+      path: r.path,
+      map: routeMap,
+      strokeColor: color,
+      strokeOpacity: 0.85,
+      strokeWeight: 5,
+      clickable: true,
+    });
+    poly.addListener('click', (e) => {
+      const bits = [
+        '<div style="font-size:13px;line-height:1.5;max-width:240px">',
+        '<b>' + escAttr(r.name) + '</b><br>',
+        '<span style="color:' + color + ';font-weight:600">' + (ROUTE_LABELS[r.kind] || r.kind) + '</span>',
+        r.clearance_ft ? '<br>Max height: <b>' + r.clearance_ft + ' ft</b>' : '',
+        r.miles ? '<br>~' + Number(r.miles).toFixed(1) + ' mi' : '',
+        r.notes ? '<br><span style="color:#5c5b56">' + escAttr(r.notes) + '</span>' : '',
+        '</div>'
+      ].join('');
+      routeInfo.setContent(bits);
+      routeInfo.setPosition(e.latLng);
+      routeInfo.open(routeMap);
+    });
+    routePolys.push(poly);
+  });
+
+  renderRouteList();
+}
+
+function renderRouteList(){
+  const box = document.getElementById('routeList');
+  if (!box) return;
+  const isAdmin = currentSession && currentSession.role === 'admin';
+  if (!routeList.length){
+    box.innerHTML = '<div class="empty"><div class="empty-icon">🛣️</div><p>No routes saved yet. Use Trace Road or Free Draw above to mark one.</p></div>';
+    return;
+  }
+  box.innerHTML = routeList.map(r => {
+    const color = ROUTE_COLORS[r.kind] || '#334155';
+    return '<div class="bid-card" style="cursor:pointer" onclick="focusRoute(\'' + r.id + '\')">'
+      + '<div class="bid-card-top"><div style="flex:1;min-width:0">'
+      + '<div class="bid-card-name"><span class="cal-dot" style="background:' + color + ';display:inline-block;margin-right:6px"></span>' + escAttr(r.name) + '</div>'
+      + '<div class="bid-card-sub">' + (ROUTE_LABELS[r.kind] || r.kind)
+        + (r.clearance_ft ? ' · max ' + r.clearance_ft + ' ft' : '')
+        + (r.miles ? ' · ~' + Number(r.miles).toFixed(1) + ' mi' : '') + '</div>'
+      + (r.notes ? '<div class="bid-card-sub" style="margin-top:2px">' + escAttr(r.notes) + '</div>' : '')
+      + '</div>'
+      + (isAdmin ? '<div style="flex-shrink:0;margin-left:12px"><button class="btn sm danger" onclick="event.stopPropagation();deleteRoute(\'' + r.id + '\')" style="font-size:11px;padding:3px 8px">🗑</button></div>' : '')
+      + '</div></div>';
+  }).join('');
+}
+
+function focusRoute(id){
+  const r = routeList.find(x => x.id == id);
+  if (!r || !routeMap || !Array.isArray(r.path) || !r.path.length) return;
+  const b = new google.maps.LatLngBounds();
+  r.path.forEach(p => b.extend(p));
+  routeMap.fitBounds(b);
+  window.scrollTo({ top: document.getElementById('routeMap').offsetTop - 80, behavior: 'smooth' });
+}
+
+// ── Drawing ──
+function setDrawUI(active){
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+  show('rtCancelBtn', active);
+  show('rtSaveBtn', active);
+  show('rtUndoBtn', active);
+  const t = document.getElementById('rtTraceBtn');
+  if (t) t.disabled = active;
+}
+
+function setHint(msg){
+  const el = document.getElementById('rtHint');
+  if (el) el.innerHTML = msg || '';
+}
+
+function startRouteDraw(){
+  if (!routeMap) { initRouteMap(); }
+  if (!routeMap) { showToast('Map still loading'); return; }
+  cancelRouteDraw(true);
+  rtMode = 'draw';
+  rtPoints = [];
+  rtDraftPath = [];
+  setDrawUI(true);
+  setHint('Tap the start of the corridor, then tap further along it.');
+  rtClickListener = routeMap.addListener('click', (e) => onRouteMapClick(e.latLng));
+}
+
+function cancelRouteDraw(quiet){
+  if (rtClickListener) { google.maps.event.removeListener(rtClickListener); rtClickListener = null; }
+  if (rtDraftPoly) { rtDraftPoly.setMap(null); rtDraftPoly = null; }
+  rtMarkers.forEach(m => m.setMap(null));
+  rtMarkers = [];
+  rtMode = null; rtPoints = []; rtDraftPath = [];
+  setDrawUI(false);
+  setHint('');
+  if (!quiet) showToast('Cancelled');
+}
+
+function onRouteMapClick(latLng){
+  rtPoints.push({ lat: latLng.lat(), lng: latLng.lng() });
+  const m = new google.maps.Marker({
+    position: latLng, map: routeMap, zIndex: 999,
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 5, fillColor: '#ffffff', fillOpacity: 1,
+      strokeColor: '#1a2744', strokeWeight: 2,
+    },
+  });
+  rtMarkers.push(m);
+  refreshDraft();
+}
+
+function undoRoutePoint(){
+  if (!rtPoints.length) return;
+  rtPoints.pop();
+  const m = rtMarkers.pop();
+  if (m) m.setMap(null);
+  refreshDraft();
+}
+
+// Trace the real road between the tapped points using Google Directions.
+async function traceRoads(points){
+  const origin = points[0];
+  const destination = points[points.length - 1];
+  const waypoints = points.slice(1, -1).map(p => ({ location: p, stopover: false }));
+  const res = await directionsService.route({
+    origin, destination, waypoints,
+    travelMode: google.maps.TravelMode.DRIVING,
+  });
+  const path = [];
+  res.routes[0].legs.forEach(leg => leg.steps.forEach(step => {
+    step.path.forEach(pt => path.push({ lat: pt.lat(), lng: pt.lng() }));
+  }));
+  return path;
+}
+
+async function refreshDraft(){
+  if (rtDraftPoly) { rtDraftPoly.setMap(null); rtDraftPoly = null; }
+  if (rtPoints.length < 2) {
+    rtDraftPath = rtPoints.slice();
+    setHint(rtPoints.length ? 'Good — now tap the next point along the road.' : 'Tap along the highway.');
+    return;
+  }
+  setHint('Following the road…');
+  let dashed = false;
+  try {
+    rtDraftPath = await traceRoads(rtPoints);
+  } catch(e){
+    rtDraftPath = rtPoints.slice();
+    dashed = true;
+    setHint('<b style="color:var(--red)">Could not follow the road</b> — drawing straight segments. ' +
+            'This usually means the <b>Directions API</b> isn\'t enabled on your Google Maps key.');
+  }
+  drawDraft(dashed);
+  if (!dashed){
+    const mi = draftMiles();
+    setHint('Following the road. Keep tapping, or tap <b>Save</b>.' +
+      (mi != null ? '  <b>' + mi.toFixed(1) + ' mi</b>' : ''));
+  }
+}
+
+function drawDraft(dashed){
+  if (!rtDraftPath.length) return;
+  const opts = {
+    path: rtDraftPath, map: routeMap,
+    strokeColor: '#1a2744', strokeOpacity: dashed ? 0 : 0.9, strokeWeight: 5,
+  };
+  if (dashed){
+    opts.icons = [{
+      icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.9, strokeWeight: 5, scale: 1 },
+      offset: '0', repeat: '14px',
+    }];
+  }
+  rtDraftPoly = new google.maps.Polyline(opts);
+}
+
+function draftMiles(){
+  if (!rtDraftPath.length || !google.maps.geometry) return null;
+  const meters = google.maps.geometry.spherical.computeLength(
+    rtDraftPath.map(p => new google.maps.LatLng(p.lat, p.lng))
+  );
+  return meters / 1609.344;
+}
+
+// ── Save ──
+function openRouteSaveModal(){
+  if (rtDraftPath.length < 2) { showToast('Tap at least two points first'); return; }
+  const mi = draftMiles();
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.onclick = e => { if (e.target === ov) { ov.remove(); document.body.style.overflow=''; } };
+  ov.innerHTML = '<div class="modal">'
+    + '<div class="modal-header"><div><div class="modal-title">Save Route</div>'
+    + '<div style="font-size:13px;color:var(--text-muted);margin-top:2px">' + (mi ? '~' + mi.toFixed(1) + ' miles' : '') + '</div></div>'
+    + '<button class="modal-close" onclick="this.closest(\'.overlay\').remove();document.body.style.overflow=\'\'">✕</button></div>'
+    + '<div class="field full"><label>Route name <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label><input type="text" id="rt-name" placeholder="Leave blank to auto-name"></div>'
+    + '<div class="field full"><label>Type</label>'
+    + '<select id="rt-kind" onchange="onRouteKindChange()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:14px;background:white;-webkit-appearance:none">'
+    + '<option value="approved">Approved / preferred corridor</option>'
+    + '<option value="restricted">Restricted / avoid</option>'
+    + '<option value="clearance">Low clearance</option>'
+    + '</select></div>'
+    + '<div class="field full" id="rt-clearance-wrap" style="display:none"><label>Max clearance (ft)</label><input type="number" step="0.1" id="rt-clearance" placeholder="e.g. 13.5"></div>'
+    + '<div class="field full"><label>Notes</label><textarea id="rt-notes" rows="3" placeholder="Bridge height, curfew, escort requirements, etc."></textarea></div>'
+    + '<div class="btn-row"><button class="btn primary" id="rt-save-btn" onclick="saveRoute()">Save Route</button>'
+    + '<button class="btn" onclick="this.closest(\'.overlay\').remove();document.body.style.overflow=\'\'">Cancel</button></div>'
+    + '</div>';
+  document.body.appendChild(ov);
+  document.body.style.overflow = 'hidden';
+}
+
+function onRouteKindChange(){
+  const k = document.getElementById('rt-kind').value;
+  const w = document.getElementById('rt-clearance-wrap');
+  if (w) w.style.display = k === 'clearance' ? '' : 'none';
+}
+
+async function saveRoute(){
+  const kind = document.getElementById('rt-kind').value;
+  const mi0 = draftMiles();
+  let name = (document.getElementById('rt-name').value || '').trim();
+  if (!name) {
+    // Name is optional — build a useful label automatically
+    name = (ROUTE_LABELS[kind] || 'Route') + ' segment' + (mi0 != null ? ' · ' + mi0.toFixed(1) + ' mi' : '');
+  }
+  const notes = (document.getElementById('rt-notes').value || '').trim() || null;
+  const clearance = kind === 'clearance'
+    ? (parseFloat(document.getElementById('rt-clearance').value) || null)
+    : null;
+  const mi = mi0;
+  const btn = document.getElementById('rt-save-btn');
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+  try {
+    await sb('kmt_routes', 'POST', {
+      name, kind, notes,
+      clearance_ft: clearance,
+      path: rtDraftPath,
+      miles: mi != null ? Number(mi.toFixed(2)) : null,
+      created_by: currentSession ? currentSession.username : null,
+    });
+    document.querySelectorAll('.overlay').forEach(o => o.remove());
+    document.body.style.overflow = '';
+    cancelRouteDraw(true);
+    await loadRoutesFromDB();
+    renderRoutes();
+    showToast('Route saved ✓');
+  } catch(e){
+    showToast('Save failed — did you run the routes SQL?');
+    if (btn) { btn.textContent = 'Save Route'; btn.disabled = false; }
+  }
+}
+
+async function deleteRoute(id){
+  if (!confirm('Delete this route? This cannot be undone.')) return;
+  try {
+    await sb('kmt_routes?id=eq.' + id, 'DELETE');
+    await loadRoutesFromDB();
+    renderRoutes();
+    showToast('Route deleted');
+  } catch(e){ showToast('Delete failed'); }
+}
 
 // ══════════════════════════════════════════════
 // PHONE FORMATTING
