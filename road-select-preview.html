@@ -81,13 +81,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 
 <div class="card">
   <div class="card-title">Select Roads</div>
-  <div class="sub"><b>Click any highway on the map to select it.</b> The road highlights and gets added below. Click more roads to build a corridor, then save it.</div>
+  <div class="sub">Roads load automatically as you move the map (zoom in to a work area first). <b>Click any loaded road to select it instantly.</b> Build a corridor, then save it.</div>
 
   <div class="row">
-    <label class="chip" style="background:#fff"><input type="checkbox" id="wholeRoute" style="margin-right:4px">Grab the whole route (e.g. all of US-50 in view)</label>
+    <label class="chip" style="background:#fff"><input type="checkbox" id="wholeRoute" style="margin-right:4px">Select the whole route (e.g. all of US-50 that's loaded)</label>
   </div>
 
-  <div class="hint" id="hint">Click a highway on the map to select it.</div>
+  <div class="hint" id="hint">Zoom to your area — roads will load and become clickable.</div>
 
   <div class="row" style="margin-bottom:10px">
     <label class="chip"><input type="checkbox" id="fApproved" checked onchange="render()"><span class="dot" style="background:#1e9e5a"></span>Approved</label>
@@ -116,11 +116,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-seri
 <div class="toast" id="toast"></div>
 
 <script>
+
 const COLORS={approved:'#1e9e5a',restricted:'#cc2b2b',clearance:'#e8a020'};
 const LABELS={approved:'Approved',restricted:'Restricted',clearance:'Low Clearance'};
-// Road lookups go through YOUR Supabase Edge Function ("roads"), which
-// calls the road database server-side (no browser blocks), retries across
-// mirrors, and caches every result in your database.
 const ROADS_FN='https://kdtlhddkthghqllkshbb.supabase.co/functions/v1/roads';
 const ROADS_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkdGxoZGRrdGhnaHFsbGtzaGJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4OTI5NjEsImV4cCI6MjA5NTQ2ODk2MX0.fPsWsMSBgbktKbntFnXubUYW7HoP5OHZPkaMq510-vM';
 
@@ -129,138 +127,132 @@ let routes=[
    segs:[{name:'US 50',path:[[38.9926,-76.3616],[38.9760,-76.2900],[38.9600,-76.1900],[38.9330,-76.1000],[38.8900,-75.9800],[38.8100,-75.8900],[38.6700,-75.8000],[38.5000,-75.7000],[38.3607,-75.5994]]}],miles:62.4}
 ];
 
-let map,lines=[],selection=[],selLines=[],busy=false,lastAddCount=0;
+let map,savedLines=[];
+const loadedWays=new Map();   // wayId -> {id,name,ref,path,line,selected}
+const loadedTiles=new Set();  // tile keys already fetched
+let loadingTiles=0;
+const TILE=0.2, MIN_ZOOM=9;
 
 map=L.map('map').setView([38.90,-76.20],10);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
-map.on('click',onMapClick);
+map.on('moveend',ensureTiles);
 
-function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2000);}
 function hint(h,cls){const e=document.getElementById('hint');e.innerHTML=h;e.className='hint'+(cls?' '+cls:'');}
-function fmtFtIn(v){const n=parseFloat(v);if(isNaN(n))return null;let ft=Math.floor(n),i=Math.round((n-ft)*12);if(i===12){ft+=1;i=0;}return ft+"'"+(i?' '+i+'\"':'');}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+function fmtFtIn(v){const n=parseFloat(v);if(isNaN(n))return null;let ft=Math.floor(n),i=Math.round((n-ft)*12);if(i===12){ft+=1;i=0;}return ft+"'"+(i?' '+i+'\"':'');}
 function miles(p){let m=0;for(let i=1;i<p.length;i++)m+=map.distance(p[i-1],p[i]);return m/1609.344;}
-function segMiles(segs){return segs.reduce((t,s)=>t+miles(s.path),0);}
 function filters(){return{approved:document.getElementById('fApproved').checked,restricted:document.getElementById('fRestricted').checked,clearance:document.getElementById('fClearance').checked};}
 
-// ── Ask OpenStreetMap what road is at this point ──
-// Call the roads Edge Function with a short retry for transient hiccups
-async function roadsFetch(payload, attempt){
-  attempt=attempt||1;
-  try{
-    const res=await fetch(ROADS_FN,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+ROADS_KEY,'apikey':ROADS_KEY},
-      body:JSON.stringify(payload)
-    });
-    const d=await res.json().catch(()=>({}));
-    if(!res.ok||!d.ok)throw new Error(d.detail||d.error||('HTTP '+res.status));
-    return d.elements||[];
-  }catch(err){
-    if(attempt>=3)throw err;
-    hint('<span class="spin"></span>Retrying…','active');
-    await new Promise(r=>setTimeout(r,attempt*1500));
-    return roadsFetch(payload, attempt+1);
+// ── Load road tiles for the visible area ──
+async function roadsFetch(payload){
+  const res=await fetch(ROADS_FN,{method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+ROADS_KEY,'apikey':ROADS_KEY},
+    body:JSON.stringify(payload)});
+  const d=await res.json().catch(()=>({}));
+  if(!res.ok||!d.ok)throw new Error(d.detail||d.error||('HTTP '+res.status));
+  return d.elements||[];
+}
+
+function tileKeysInView(){
+  const b=map.getBounds(), keys=[];
+  const s=Math.floor(b.getSouth()/TILE)*TILE, w=Math.floor(b.getWest()/TILE)*TILE;
+  for(let y=s;y<b.getNorth();y+=TILE)
+    for(let x=w;x<b.getEast();x+=TILE)
+      keys.push([+y.toFixed(1),+x.toFixed(1)]);
+  return keys;
+}
+
+async function ensureTiles(){
+  if(map.getZoom()<MIN_ZOOM){
+    hint('Zoom in closer to load clickable roads.');
+    return;
   }
-}
-
-async function queryRoadAt(lat,lng){
-  const els=await roadsFetch({mode:'at',lat:lat,lng:lng});
-  if(!els.length)throw new Error('no road found there');
-  return els;
-}
-
-// Grab every piece of a named route within the current view
-async function queryWholeRoute(ref){
-  const b=map.getBounds();
-  return await roadsFetch({mode:'route',ref:ref,
-    bbox:{s:b.getSouth(),w:b.getWest(),n:b.getNorth(),e:b.getEast()}});
-}
-
-function roadLabel(el){
-  const t=el.tags||{};
-  return t.ref||t.name||t.highway||'Unnamed road';
-}
-
-async function onMapClick(e){
-  if(busy)return;
-  busy=true;
-  hint('<span class="spin"></span>Finding the road you clicked…','active');
-  try{
-    const els=await queryRoadAt(e.latlng.lat,e.latlng.lng);
-    // Pick the closest road when several overlap
-    let best=els[0],bestD=Infinity;
-    els.forEach(el=>{
-      (el.geometry||[]).forEach(g=>{
-        const d=map.distance([g.lat,g.lon],e.latlng);
-        if(d<bestD){bestD=d;best=el;}
+  const need=tileKeysInView().filter(([y,x])=>!loadedTiles.has(y+','+x));
+  if(!need.length){ if(!loadingTiles) hint('Roads loaded — click any highlighted road to select it.','active'); return; }
+  for(const [y,x] of need){
+    const key=y+','+x;
+    loadedTiles.add(key);
+    loadingTiles++;
+    hint('<span class="spin"></span>Loading roads… ('+loadingTiles+' area'+(loadingTiles>1?'s':'')+' remaining)','active');
+    roadsFetch({mode:'area',bbox:{s:y,w:x,n:+(y+TILE).toFixed(1),e:+(x+TILE).toFixed(1)}})
+      .then(els=>addWays(els))
+      .catch(()=>{ loadedTiles.delete(key); })   // allow retry on next pan
+      .finally(()=>{
+        loadingTiles--;
+        if(loadingTiles===0) hint('Roads loaded — click any highlighted road to select it.','active');
       });
-    });
-    const ref=(best.tags||{}).ref;
-    let picked=[best];
-
-    if(document.getElementById('wholeRoute').checked&&ref){
-      hint('<span class="spin"></span>Grabbing all of '+esc(ref)+' in view…','active');
-      const all=await queryWholeRoute(ref);
-      if(all.length)picked=all;
-    }
-
-    let added=0;
-    picked.forEach(el=>{
-      if(!el.geometry||el.geometry.length<2)return;
-      if(selection.some(s=>s.id===el.id))return;
-      selection.push({id:el.id,name:roadLabel(el),path:el.geometry.map(g=>[g.lat,g.lon])});
-      added++;
-    });
-
-    if(added)lastAddCount=added;
-    if(!added){hint('That road is already selected.','');}
-    else{
-      const total=segMiles(selection);
-      hint('Selected <b>'+esc(roadLabel(best))+'</b>'+(added>1?' ('+added+' segments)':'')
-        +'. Click more roads, or save below.<span class="pill">'+total.toFixed(1)+' mi</span>','active');
-    }
-    drawSelection();
-  }catch(err){
-    const m=String(err.message||err);
-    if(/no road found/.test(m)){
-      hint('No highway right there — try clicking directly on the road line, or zoom in first.','');
-    }else{
-      hint('<b>Road lookup failed</b> ('+esc(m)+'). '
-        +'If this says 404, the "roads" Edge Function isn\'t deployed yet — see the setup note. '
-        +'Otherwise wait a moment and click again; your current selection is safe.','err');
-    }
   }
-  busy=false;
 }
 
-function drawSelection(){
-  selLines.forEach(l=>map.removeLayer(l));selLines=[];
-  selection.forEach(s=>{
-    const l=L.polyline(s.path,{color:'#1a2744',weight:7,opacity:.9}).addTo(map);
-    selLines.push(l);
+function addWays(els){
+  els.forEach(el=>{
+    if(!el.geometry||el.geometry.length<2)return;
+    if(loadedWays.has(el.id))return;
+    const t=el.tags||{};
+    const w={id:el.id,ref:t.ref||null,name:t.ref||t.name||t.highway||'road',
+             path:el.geometry.map(g=>[g.lat,g.lon]),selected:false,line:null};
+    w.line=L.polyline(w.path,{color:'#8a93a6',weight:4,opacity:.65}).addTo(map);
+    w.line.on('click',ev=>{L.DomEvent.stopPropagation(ev);toggleWay(w);});
+    w.line.on('mouseover',()=>{if(!w.selected)w.line.setStyle({weight:6,opacity:.9});});
+    w.line.on('mouseout',()=>{if(!w.selected)w.line.setStyle({weight:4,opacity:.65});});
+    loadedWays.set(el.id,w);
   });
-  const box=document.getElementById('selBox');
-  box.style.display=selection.length?'':'none';
-  document.getElementById('selList').innerHTML=selection.map((s,i)=>
-    '<div class="selrow"><span class="dot" style="background:#1a2744"></span>'
-    +'<span class="nm">'+esc(s.name)+'</span>'
-    +'<span class="mi">'+miles(s.path).toFixed(1)+' mi</span>'
-    +'<button class="rm" onclick="removeSel('+i+')" title="Remove">✕</button></div>').join('');
 }
 
-function removeSel(i){selection.splice(i,1);drawSelection();if(!selection.length)hint('Click a highway on the map to select it.');}
+// ── Instant local selection ──
+let lastToggled=[];
+function styleWay(w){
+  w.line.setStyle(w.selected?{color:'#1a2744',weight:7,opacity:.95}:{color:'#8a93a6',weight:4,opacity:.65});
+}
+function toggleWay(w){
+  const whole=document.getElementById('wholeRoute').checked && w.ref;
+  const targets=whole?[...loadedWays.values()].filter(x=>x.ref===w.ref):[w];
+  const turningOn=!w.selected;
+  targets.forEach(x=>{x.selected=turningOn;styleWay(x);});
+  lastToggled=turningOn?targets.map(x=>x.id):[];
+  updateSelBox();
+  const sel=[...loadedWays.values()].filter(x=>x.selected);
+  if(turningOn){
+    hint('Selected <b>'+esc(w.name)+'</b>'+(targets.length>1?' ('+targets.length+' segments)':'')+
+      '.<span class="pill">'+sel.reduce((t,x)=>t+miles(x.path),0).toFixed(1)+' mi</span>','active');
+  }else{
+    hint(sel.length?'Deselected.':'Click a road to select it.','active');
+  }
+}
 function undoLast(){
-  if(!lastAddCount||!selection.length)return;
-  selection.splice(selection.length-lastAddCount, lastAddCount);
-  lastAddCount=0;
-  drawSelection();
-  hint(selection.length?'Removed last selection.':'Click a highway on the map to select it.',selection.length?'active':'');
+  if(!lastToggled.length)return;
+  lastToggled.forEach(id=>{const w=loadedWays.get(id);if(w){w.selected=false;styleWay(w);}});
+  lastToggled=[];
+  updateSelBox();
+  hint('Removed last selection.','active');
 }
-function clearSelection(){selection=[];drawSelection();hint('Click a highway on the map to select it.');}
+function removeSel(id){
+  const w=loadedWays.get(Number(id))||loadedWays.get(id);
+  if(w){w.selected=false;styleWay(w);updateSelBox();}
+}
+function clearSelection(){
+  [...loadedWays.values()].forEach(w=>{if(w.selected){w.selected=false;styleWay(w);}});
+  lastToggled=[];
+  updateSelBox();
+  hint('Click a road to select it.');
+}
+function currentSelection(){return [...loadedWays.values()].filter(w=>w.selected);}
 
+function updateSelBox(){
+  const sel=currentSelection();
+  const box=document.getElementById('selBox');
+  box.style.display=sel.length?'':'none';
+  document.getElementById('selList').innerHTML=sel.map(w=>
+    '<div class="selrow"><span class="dot" style="background:#1a2744"></span>'
+    +'<span class="nm">'+esc(w.name)+'</span>'
+    +'<span class="mi">'+miles(w.path).toFixed(1)+' mi</span>'
+    +'<button class="rm" onclick="removeSel(\''+w.id+'\')" title="Remove">✕</button></div>').join('');
+}
+
+// ── Saved corridors ──
 function render(){
-  lines.forEach(l=>map.removeLayer(l));lines=[];
+  savedLines.forEach(l=>map.removeLayer(l));savedLines=[];
   const f=filters();
   routes.forEach(r=>{
     if(!f[r.kind])return;
@@ -275,7 +267,7 @@ function render(){
           +(r.miles?'<br>~'+Number(r.miles).toFixed(1)+' mi':'')
           +(r.notes?'<br><span style="color:#5c5b56">'+esc(r.notes)+'</span>':'')+'</div>').openOn(map);
       });
-      lines.push(line);
+      savedLines.push(line);
     });
   });
   renderList();
@@ -307,16 +299,18 @@ function delRoute(id){
   routes=routes.filter(r=>r.id!==id);render();toast('Deleted');
 }
 
+// ── Save modal ──
 function openSave(){
-  if(!selection.length){toast('Select at least one road first');return;}
-  const mi=segMiles(selection);
-  const suggested=selection[0].name+(selection.length>1?' + '+(selection.length-1)+' more':'');
+  const sel=currentSelection();
+  if(!sel.length){toast('Select at least one road first');return;}
+  const mi=sel.reduce((t,w)=>t+miles(w.path),0);
+  const suggested=sel[0].name+(sel.length>1?' + '+(sel.length-1)+' more':'');
   const ov=document.createElement('div');
   ov.className='overlay';
   ov.onclick=e=>{if(e.target===ov)ov.remove();};
   ov.innerHTML='<div class="modal">'
     +'<div class="modal-hd"><div><div class="modal-title">Save Corridor</div>'
-    +'<div style="font-size:12px;color:var(--text-muted);margin-top:2px">'+selection.length+' road'+(selection.length===1?'':'s')+' · ~'+mi.toFixed(1)+' mi</div></div>'
+    +'<div style="font-size:12px;color:var(--text-muted);margin-top:2px">'+sel.length+' road'+(sel.length===1?'':'s')+' · ~'+mi.toFixed(1)+' mi</div></div>'
     +'<button class="x" onclick="this.closest(\'.overlay\').remove()">✕</button></div>'
     +'<div class="field"><label>Name <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label><input id="rName" placeholder="'+esc(suggested)+'"></div>'
     +'<div class="field"><label>Type</label><select id="rKind" onchange="kindChange()">'
@@ -329,13 +323,12 @@ function openSave(){
     +'<button class="btn" onclick="this.closest(\'.overlay\').remove()">Cancel</button></div></div>';
   document.body.appendChild(ov);
 }
-
 function kindChange(){document.getElementById('clWrap').style.display=document.getElementById('rKind').value==='clearance'?'':'none';}
-
 function doSave(){
+  const sel=currentSelection();
   const kind=document.getElementById('rKind').value;
   let name=(document.getElementById('rName').value||'').trim();
-  if(!name)name=selection[0].name+(selection.length>1?' + '+(selection.length-1)+' more':'');
+  if(!name)name=sel[0].name+(sel.length>1?' + '+(sel.length-1)+' more':'');
   const notes=(document.getElementById('rNotes').value||'').trim()||null;
   let cl=null;
   if(kind==='clearance'){
@@ -344,7 +337,8 @@ function doSave(){
     cl=(cf||ci)?Math.round((cf+ci/12)*100)/100:null;
   }
   routes.unshift({id:'r'+Date.now(),name,kind,notes,clearance_ft:cl,
-    segs:selection.map(s=>({name:s.name,path:s.path.slice()})),miles:segMiles(selection)});
+    segs:sel.map(w=>({name:w.name,path:w.path.slice()})),
+    miles:sel.reduce((t,w)=>t+miles(w.path),0)});
   document.querySelectorAll('.overlay').forEach(o=>o.remove());
   clearSelection();
   render();
@@ -352,6 +346,8 @@ function doSave(){
 }
 
 render();
+ensureTiles();
+
 </script>
 </body>
 </html>
