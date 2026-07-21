@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Route Reference Map — KMT</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --navy:#1a2744;--accent:#e8a020;--green:#1e9e5a;--red:#cc2b2b;--blue:#1a6fcc;
+  --gray-50:#f8f8f6;--gray-100:#efefec;--text:#1e1e1c;--text-muted:#5c5b56;
+  --border:#ddddd8;--radius:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--gray-50);color:var(--text);padding-bottom:30px}
+
+.hdr{background:var(--navy);color:#fff;padding:12px 16px}
+.hdr .t1{font-size:15px;font-weight:700}
+.hdr .t2{font-size:11px;color:rgba(255,255,255,.6)}
+
+.card{background:#fff;border:1px solid var(--border);border-radius:var(--radius);margin:12px;padding:14px}
+.card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--navy);padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px}
+.sub{font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.45}
+
+.btn{padding:8px 13px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--text)}
+.btn:active{transform:scale(.97)}
+.btn.accent{background:var(--accent);color:var(--navy);border-color:var(--accent)}
+.btn.primary{background:var(--navy);color:#fff;border-color:var(--navy)}
+.btn.danger{background:#fff;color:var(--red);border-color:#f0c8c8}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.sm{padding:5px 10px;font-size:12px}
+.row{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+
+.hint{font-size:12.5px;margin:10px 0;min-height:18px;line-height:1.45;color:var(--text-muted)}
+.hint.active{color:var(--navy)}
+.hint.err{color:var(--red)}
+.pill{display:inline-block;background:var(--navy);color:#fff;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700;margin-left:5px}
+
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:4px 9px;border-radius:20px;background:var(--gray-50);border:1px solid var(--border);cursor:pointer}
+.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+#map{width:100%;height:56vh;min-height:340px;border-radius:var(--radius);border:1px solid var(--border);z-index:1;cursor:crosshair}
+
+.selbox{background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-top:10px}
+.selrow{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)}
+.selrow:last-child{border-bottom:none}
+.selrow .nm{flex:1;font-weight:600}
+.selrow .mi{color:var(--text-muted);font-size:12px}
+.rm{background:none;border:none;color:var(--red);cursor:pointer;font-size:15px;padding:0 4px}
+
+.item{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;cursor:pointer;background:#fff}
+.item:hover{background:var(--gray-50)}
+.item-name{font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px}
+.item-sub{font-size:12px;color:var(--text-muted);margin-top:2px}
+.empty{text-align:center;padding:24px 12px;color:var(--text-muted);font-size:13px}
+.empty .ico{font-size:30px;margin-bottom:6px}
+
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999;padding:12px}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:460px;padding:18px;max-height:88vh;overflow-y:auto}
+.modal-hd{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+.modal-title{font-size:17px;font-weight:700;color:var(--navy)}
+.x{background:none;border:none;font-size:20px;color:var(--text-muted);cursor:pointer;padding:0 4px}
+.field{margin-bottom:11px}
+.field label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:15px;font-family:inherit;background:#fff;color:var(--text)}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:10px 18px;border-radius:22px;font-size:13px;font-weight:600;z-index:10000;opacity:0;transition:opacity .25s;pointer-events:none;max-width:88%;text-align:center}
+.toast.show{opacity:1}
+.leaflet-container{font-family:inherit}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--border);border-top-color:var(--navy);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:5px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="t1">Route Reference Map</div>
+  <div class="t2">Kentmorr Marine Transport</div>
+</div>
+
+<div class="card">
+  <div class="card-title">Select Roads</div>
+  <div class="sub"><b>Click any highway on the map to select it.</b> The road highlights and gets added below. Click more roads to build a corridor, then save it.</div>
+
+  <div class="row">
+    <label class="chip" style="background:#fff"><input type="checkbox" id="wholeRoute" style="margin-right:4px">Grab the whole route (e.g. all of US-50 in view)</label>
+  </div>
+
+  <div class="hint" id="hint">Click a highway on the map to select it.</div>
+
+  <div class="row" style="margin-bottom:10px">
+    <label class="chip"><input type="checkbox" id="fApproved" checked onchange="render()"><span class="dot" style="background:#1e9e5a"></span>Approved</label>
+    <label class="chip"><input type="checkbox" id="fRestricted" checked onchange="render()"><span class="dot" style="background:#cc2b2b"></span>Restricted</label>
+    <label class="chip"><input type="checkbox" id="fClearance" checked onchange="render()"><span class="dot" style="background:#e8a020"></span>Low Clearance</label>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="selbox" id="selBox" style="display:none">
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:6px">Current Selection</div>
+    <div id="selList"></div>
+    <div class="row" style="margin-top:9px">
+      <button class="btn primary sm" onclick="openSave()">Save as Corridor</button>
+      <button class="btn sm" onclick="clearSelection()">Clear</button>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-title">Saved Corridors</div>
+  <div id="list"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const COLORS={approved:'#1e9e5a',restricted:'#cc2b2b',clearance:'#e8a020'};
+const LABELS={approved:'Approved',restricted:'Restricted',clearance:'Low Clearance'};
+const OVERPASS='https://overpass-api.de/api/interpreter';
+
+let routes=[
+  {id:'s1',name:'US-50 — Bay Bridge to Salisbury',kind:'approved',notes:'Standard eastbound corridor.',clearance_ft:null,
+   segs:[{name:'US 50',path:[[38.9926,-76.3616],[38.9760,-76.2900],[38.9600,-76.1900],[38.9330,-76.1000],[38.8900,-75.9800],[38.8100,-75.8900],[38.6700,-75.8000],[38.5000,-75.7000],[38.3607,-75.5994]]}],miles:62.4}
+];
+
+let map,lines=[],selection=[],selLines=[],busy=false;
+
+map=L.map('map').setView([38.90,-76.20],10);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
+map.on('click',onMapClick);
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2200);}
+function hint(h,cls){const e=document.getElementById('hint');e.innerHTML=h;e.className='hint'+(cls?' '+cls:'');}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
+function miles(p){let m=0;for(let i=1;i<p.length;i++)m+=map.distance(p[i-1],p[i]);return m/1609.344;}
+function segMiles(segs){return segs.reduce((t,s)=>t+miles(s.path),0);}
+function filters(){return{approved:document.getElementById('fApproved').checked,restricted:document.getElementById('fRestricted').checked,clearance:document.getElementById('fClearance').checked};}
+
+// ── Ask OpenStreetMap what road is at this point ──
+async function queryRoadAt(lat,lng){
+  const q='[out:json][timeout:25];'
+    +'way(around:40,'+lat+','+lng+')'
+    +'["highway"~"^(motorway|trunk|primary|secondary|tertiary|motorway_link|trunk_link|primary_link)$"];'
+    +'out geom tags;';
+  const res=await fetch(OVERPASS,{method:'POST',body:'data='+encodeURIComponent(q),
+    headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const d=await res.json();
+  if(!d.elements||!d.elements.length)throw new Error('no road found there');
+  return d.elements;
+}
+
+// ── Grab every piece of a named route within the current view ──
+async function queryWholeRoute(ref){
+  const b=map.getBounds();
+  const bbox=b.getSouth()+','+b.getWest()+','+b.getNorth()+','+b.getEast();
+  const q='[out:json][timeout:30];'
+    +'way["ref"="'+ref.replace(/"/g,'')+'"]["highway"]('+bbox+');'
+    +'out geom tags;';
+  const res=await fetch(OVERPASS,{method:'POST',body:'data='+encodeURIComponent(q),
+    headers:{'Content-Type':'application/x-www-form-urlencoded'}});
+  if(!res.ok)throw new Error('HTTP '+res.status);
+  const d=await res.json();
+  return (d.elements||[]);
+}
+
+function roadLabel(el){
+  const t=el.tags||{};
+  return t.ref||t.name||t.highway||'Unnamed road';
+}
+
+async function onMapClick(e){
+  if(busy)return;
+  busy=true;
+  hint('<span class="spin"></span>Finding the road you clicked…','active');
+  try{
+    const els=await queryRoadAt(e.latlng.lat,e.latlng.lng);
+    // Pick the closest road when several overlap
+    let best=els[0],bestD=Infinity;
+    els.forEach(el=>{
+      (el.geometry||[]).forEach(g=>{
+        const d=map.distance([g.lat,g.lon],e.latlng);
+        if(d<bestD){bestD=d;best=el;}
+      });
+    });
+    const ref=(best.tags||{}).ref;
+    let picked=[best];
+
+    if(document.getElementById('wholeRoute').checked&&ref){
+      hint('<span class="spin"></span>Grabbing all of '+esc(ref)+' in view…','active');
+      const all=await queryWholeRoute(ref);
+      if(all.length)picked=all;
+    }
+
+    let added=0;
+    picked.forEach(el=>{
+      if(!el.geometry||el.geometry.length<2)return;
+      if(selection.some(s=>s.id===el.id))return;
+      selection.push({id:el.id,name:roadLabel(el),path:el.geometry.map(g=>[g.lat,g.lon])});
+      added++;
+    });
+
+    if(!added){hint('That road is already selected.','');}
+    else{
+      const total=segMiles(selection);
+      hint('Selected <b>'+esc(roadLabel(best))+'</b>'+(added>1?' ('+added+' segments)':'')
+        +'. Click more roads, or save below.<span class="pill">'+total.toFixed(1)+' mi</span>','active');
+    }
+    drawSelection();
+  }catch(err){
+    const m=String(err.message||err);
+    if(/no road found/.test(m)){
+      hint('No highway right there — try clicking directly on the road line, or zoom in first.','');
+    }else{
+      hint('<b>Could not reach the road database</b> ('+esc(m)+'). '
+        +'If this is a preview window, outside connections may be blocked — it works on your own site.','err');
+    }
+  }
+  busy=false;
+}
+
+function drawSelection(){
+  selLines.forEach(l=>map.removeLayer(l));selLines=[];
+  selection.forEach(s=>{
+    const l=L.polyline(s.path,{color:'#1a2744',weight:7,opacity:.9}).addTo(map);
+    selLines.push(l);
+  });
+  const box=document.getElementById('selBox');
+  box.style.display=selection.length?'':'none';
+  document.getElementById('selList').innerHTML=selection.map((s,i)=>
+    '<div class="selrow"><span class="dot" style="background:#1a2744"></span>'
+    +'<span class="nm">'+esc(s.name)+'</span>'
+    +'<span class="mi">'+miles(s.path).toFixed(1)+' mi</span>'
+    +'<button class="rm" onclick="removeSel('+i+')" title="Remove">✕</button></div>').join('');
+}
+
+function removeSel(i){selection.splice(i,1);drawSelection();if(!selection.length)hint('Click a highway on the map to select it.');}
+function clearSelection(){selection=[];drawSelection();hint('Click a highway on the map to select it.');}
+
+function render(){
+  lines.forEach(l=>map.removeLayer(l));lines=[];
+  const f=filters();
+  routes.forEach(r=>{
+    if(!f[r.kind])return;
+    (r.segs||[]).forEach(seg=>{
+      const line=L.polyline(seg.path,{color:COLORS[r.kind],weight:6,opacity:.85}).addTo(map);
+      line.on('click',ev=>{
+        L.DomEvent.stopPropagation(ev);
+        L.popup().setLatLng(ev.latlng).setContent(
+          '<div style="font-size:13px;line-height:1.5"><b>'+esc(r.name)+'</b><br>'
+          +'<span style="color:'+COLORS[r.kind]+';font-weight:600">'+LABELS[r.kind]+'</span>'
+          +(r.clearance_ft?'<br>Max height: <b>'+r.clearance_ft+' ft</b>':'')
+          +(r.miles?'<br>~'+Number(r.miles).toFixed(1)+' mi':'')
+          +(r.notes?'<br><span style="color:#5c5b56">'+esc(r.notes)+'</span>':'')+'</div>').openOn(map);
+      });
+      lines.push(line);
+    });
+  });
+  renderList();
+}
+
+function renderList(){
+  const box=document.getElementById('list');
+  if(!routes.length){box.innerHTML='<div class="empty"><div class="ico">🛣️</div>No corridors saved yet.</div>';return;}
+  box.innerHTML=routes.map(r=>
+    '<div class="item" onclick="focusRoute(\''+r.id+'\')">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">'
+    +'<div style="flex:1;min-width:0">'
+    +'<div class="item-name"><span class="dot" style="background:'+COLORS[r.kind]+'"></span>'+esc(r.name)+'</div>'
+    +'<div class="item-sub">'+LABELS[r.kind]+(r.clearance_ft?' · max '+r.clearance_ft+' ft':'')
+      +(r.miles?' · ~'+Number(r.miles).toFixed(1)+' mi':'')
+      +((r.segs&&r.segs.length>1)?' · '+r.segs.length+' segments':'')+'</div>'
+    +(r.notes?'<div class="item-sub">'+esc(r.notes)+'</div>':'')
+    +'</div><button class="btn sm danger" onclick="event.stopPropagation();delRoute(\''+r.id+'\')">🗑</button>'
+    +'</div></div>').join('');
+}
+
+function focusRoute(id){
+  const r=routes.find(x=>x.id===id);if(!r||!r.segs||!r.segs.length)return;
+  const b=L.latLngBounds([]);r.segs.forEach(s=>s.path.forEach(p=>b.extend(p)));
+  map.fitBounds(b,{padding:[30,30]});
+}
+function delRoute(id){
+  if(!confirm('Delete this corridor?'))return;
+  routes=routes.filter(r=>r.id!==id);render();toast('Deleted');
+}
+
+function openSave(){
+  if(!selection.length){toast('Select at least one road first');return;}
+  const mi=segMiles(selection);
+  const suggested=selection[0].name+(selection.length>1?' + '+(selection.length-1)+' more':'');
+  const ov=document.createElement('div');
+  ov.className='overlay';
+  ov.onclick=e=>{if(e.target===ov)ov.remove();};
+  ov.innerHTML='<div class="modal">'
+    +'<div class="modal-hd"><div><div class="modal-title">Save Corridor</div>'
+    +'<div style="font-size:12px;color:var(--text-muted);margin-top:2px">'+selection.length+' road'+(selection.length===1?'':'s')+' · ~'+mi.toFixed(1)+' mi</div></div>'
+    +'<button class="x" onclick="this.closest(\'.overlay\').remove()">✕</button></div>'
+    +'<div class="field"><label>Name <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label><input id="rName" placeholder="'+esc(suggested)+'"></div>'
+    +'<div class="field"><label>Type</label><select id="rKind" onchange="kindChange()">'
+    +'<option value="approved">Approved / preferred</option>'
+    +'<option value="restricted">Restricted / avoid</option>'
+    +'<option value="clearance">Low clearance</option></select></div>'
+    +'<div class="field" id="clWrap" style="display:none"><label>Max clearance (ft)</label><input type="number" step="0.1" id="rClear" placeholder="13.5"></div>'
+    +'<div class="field"><label>Notes</label><textarea id="rNotes" rows="3" placeholder="Bridge height, curfew, escort requirements…"></textarea></div>'
+    +'<div class="row"><button class="btn primary" onclick="doSave()">Save Corridor</button>'
+    +'<button class="btn" onclick="this.closest(\'.overlay\').remove()">Cancel</button></div></div>';
+  document.body.appendChild(ov);
+}
+
+function kindChange(){document.getElementById('clWrap').style.display=document.getElementById('rKind').value==='clearance'?'':'none';}
+
+function doSave(){
+  const kind=document.getElementById('rKind').value;
+  let name=(document.getElementById('rName').value||'').trim();
+  if(!name)name=selection[0].name+(selection.length>1?' + '+(selection.length-1)+' more':'');
+  const notes=(document.getElementById('rNotes').value||'').trim()||null;
+  const cl=kind==='clearance'?(parseFloat(document.getElementById('rClear').value)||null):null;
+  routes.unshift({id:'r'+Date.now(),name,kind,notes,clearance_ft:cl,
+    segs:selection.map(s=>({name:s.name,path:s.path.slice()})),miles:segMiles(selection)});
+  document.querySelectorAll('.overlay').forEach(o=>o.remove());
+  clearSelection();
+  render();
+  toast('Corridor saved ✓');
+}
+
+render();
+</script>
+</body>
+</html>
