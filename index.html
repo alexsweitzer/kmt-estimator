@@ -731,8 +731,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <div class="card">
       <div class="card-title">Pickup</div>
       <div class="form-grid">
-        <div class="field full"><label>Name / Location</label><input type="text" id="ld-pickup-name" placeholder="Marina or location name"></div>
-        <div class="field full"><label>Street Address</label><input type="text" id="ld-pickup-street" placeholder="Street address"></div>
+        <div class="field full"><label>Name / Location</label><div style="position:relative"><input type="text" id="ld-pickup-name" placeholder="Marina or location name" autocomplete="off" oninput="gmapsAutocomplete('ld-pickup',this.value)"><div id="ld-pickup-suggestions" class="gmaps-dropdown"></div></div></div>
+        <div class="field full"><label>Street Address</label><div style="position:relative"><input type="text" id="ld-pickup-street" placeholder="Street address" autocomplete="off" oninput="gmapsAutocomplete('ld-pickup',this.value,true)"><div id="ld-pickup-street-suggestions" class="gmaps-dropdown"></div></div></div>
         <div class="field"><label>City, State ZIP</label><input type="text" id="ld-pickup-city" placeholder="City, State ZIP"></div>
       </div>
     </div>
@@ -740,8 +740,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <div class="card">
       <div class="card-title">Delivery</div>
       <div class="form-grid">
-        <div class="field full"><label>Name / Location</label><input type="text" id="ld-delivery-name" placeholder="Marina or location name"></div>
-        <div class="field full"><label>Start Address</label><input type="text" id="ld-delivery-street" placeholder="Street address"></div>
+        <div class="field full"><label>Name / Location</label><div style="position:relative"><input type="text" id="ld-delivery-name" placeholder="Marina or location name" autocomplete="off" oninput="gmapsAutocomplete('ld-delivery',this.value)"><div id="ld-delivery-suggestions" class="gmaps-dropdown"></div></div></div>
+        <div class="field full"><label>Start Address</label><div style="position:relative"><input type="text" id="ld-delivery-street" placeholder="Street address" autocomplete="off" oninput="gmapsAutocomplete('ld-delivery',this.value,true)"><div id="ld-delivery-street-suggestions" class="gmaps-dropdown"></div></div></div>
         <div class="field"><label>City, State ZIP</label><input type="text" id="ld-delivery-city" placeholder="City, State ZIP"></div>
       </div>
     </div>
@@ -2482,11 +2482,11 @@ function prefillFromBid() {
   // Pickup
   sv('ld-pickup-name', b.pickup_name||b.pickup);
   sv('ld-pickup-street', b.pickup_street);
-  sv('ld-pickup-city', [b.pickup_city, b.pickup_state].filter(Boolean).join(', '));
+  sv('ld-pickup-city', [[b.pickup_city, b.pickup_state].filter(Boolean).join(', '), b.pickup_zip].filter(Boolean).join(' '));
   // Delivery
   sv('ld-delivery-name', b.drop_name||b.drop_location);
   sv('ld-delivery-street', b.drop_street);
-  sv('ld-delivery-city', [b.drop_city, b.drop_state].filter(Boolean).join(', '));
+  sv('ld-delivery-city', [[b.drop_city, b.drop_state].filter(Boolean).join(', '), b.drop_zip].filter(Boolean).join(' '));
   // Trip price carried over from the bid
   const tpEl = document.getElementById('ld-trip-price');
   if (tpEl && b.trip_price != null) tpEl.value = b.trip_price;
@@ -3410,10 +3410,18 @@ function fillPlace(prefix, placeId, fillMode) {
       const sv = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
       if (fillMode === 'name' && name) sv(prefix + '-name', name);
       if (street) sv(prefix + '-street', street);
-      if (city) sv(prefix + '-city', city);
+
+      // The estimate form has separate City / State / ZIP inputs.
+      // The load form has a single combined "City, State ZIP" input.
       const stateEl = document.getElementById(prefix + '-state');
-      if (stateEl && state) stateEl.value = state;
-      if (zip) sv(prefix + '-zip', zip);
+      if (stateEl) {
+        if (city) sv(prefix + '-city', city);
+        if (state) stateEl.value = state;
+        if (zip) sv(prefix + '-zip', zip);
+      } else {
+        const combined = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ');
+        if (combined) sv(prefix + '-city', combined);
+      }
       ['', '-street'].forEach(s => closeDrop(document.getElementById(prefix + s + '-suggestions')));
       showToast('Address filled ✓');
     }
