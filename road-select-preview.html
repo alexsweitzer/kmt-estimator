@@ -146,6 +146,16 @@ function fmtFtIn(v){const n=parseFloat(v);if(isNaN(n))return null;let ft=Math.fl
 function miles(p){let m=0;for(let i=1;i<p.length;i++)m+=map.distance(p[i-1],p[i]);return m/1609.344;}
 function filters(){return{approved:document.getElementById('fApproved').checked,restricted:document.getElementById('fRestricted').checked,clearance:document.getElementById('fClearance').checked};}
 
+async function rebuildArea(){
+  try{
+    hint('<span class="spin"></span>Clearing this area\'s build marks…','active');
+    await callFn({mode:'reseed',bbox:viewBBox()});
+    onView(); // triggers a fresh build of the cleared tiles
+  }catch(err){
+    hint('<b>Rebuild failed</b> ('+esc(String(err.message||err))+'). If this says 404, redeploy the "roads" function first.','err');
+  }
+}
+
 async function callFn(payload){
   const res=await fetch(ROADS_FN,{method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+ROADS_KEY,'apikey':ROADS_KEY},
@@ -183,14 +193,22 @@ async function onView(){
     if(seq!==viewSeq)return;                    // user moved on
     (d.ways||[]).forEach(addWay);
     if(d.ways&&d.ways.length)
-      hint('Roads loaded — click any road to select it.'+(d.truncated?' (Dense area — zoom in for the rest.)':''),'active');
+      hint('Roads loaded ('+d.ways.length+' segments in view) — click any road to select it.'+(d.truncated?' (Dense area — zoom in for the rest.)':''),'active');
 
     // 2) Find tiles never built, and build them in the background
     const t=await callFn({mode:'tiles',bbox:bbox});
     if(seq!==viewSeq)return;
     const missing=t.missing||[];
     if(!missing.length){
-      if(!(d.ways&&d.ways.length)) hint('Roads loaded — click any road to select it.','active');
+      if(d.ways&&d.ways.length){
+        // already hinted above
+      }else if(loadedWays.size===0){
+        // Marked as built, but nothing stored — heal it
+        hint('<b>This area is marked as built but no roads are stored</b> (leftover from an earlier failed attempt). '
+          +'<button class="btn accent sm" onclick="rebuildArea()" style="margin-left:6px">Rebuild This Area</button>','err');
+      }else{
+        hint('Roads loaded ('+loadedWays.size+' segments) — click any road to select it.','active');
+      }
       return;
     }
     if(seeding)return;                          // one build queue at a time
