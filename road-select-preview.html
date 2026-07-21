@@ -134,6 +134,8 @@ let lastToggled=[];
 let seeding=false, viewSeq=0;
 
 map=L.map('map',{preferCanvas:true}).setView([38.90,-76.20],10);
+// Canvas hit-testing is pixel-exact by default — give clicks a ~12px grace zone
+const RENDER=L.canvas({tolerance:12});
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap'}).addTo(map);
 map.on('moveend',onView);
 
@@ -162,7 +164,7 @@ function addWay(wy){
   if(loadedWays.has(wy.id)||!Array.isArray(wy.path)||wy.path.length<2)return;
   const w={id:wy.id,ref:wy.ref||null,name:wy.ref||wy.name||wy.class||'road',
            path:wy.path,selected:false,line:null};
-  w.line=L.polyline(w.path,{color:'#8a93a6',weight:4,opacity:.6}).addTo(map);
+  w.line=L.polyline(w.path,{renderer:RENDER,color:'#8a93a6',weight:5,opacity:.65}).addTo(map);
   w.line.on('click',ev=>{L.DomEvent.stopPropagation(ev);toggleWay(w);});
   loadedWays.set(wy.id,w);
 }
@@ -219,7 +221,7 @@ async function onView(){
 
 // ── Instant local selection ──
 function styleWay(w){
-  w.line.setStyle(w.selected?{color:'#1a2744',weight:7,opacity:.95}:{color:'#8a93a6',weight:4,opacity:.6});
+  w.line.setStyle(w.selected?{color:'#1a2744',weight:8,opacity:.95}:{color:'#8a93a6',weight:5,opacity:.65});
 }
 function toggleWay(w){
   const whole=document.getElementById('wholeRoute').checked && w.ref;
@@ -271,7 +273,7 @@ function render(){
   routes.forEach(r=>{
     if(!f[r.kind])return;
     (r.segs||[]).forEach(seg=>{
-      const line=L.polyline(seg.path,{color:COLORS[r.kind],weight:6,opacity:.85}).addTo(map);
+      const line=L.polyline(seg.path,{renderer:RENDER,color:COLORS[r.kind],weight:6,opacity:.85}).addTo(map);
       line.on('click',ev=>{
         L.DomEvent.stopPropagation(ev);
         L.popup().setLatLng(ev.latlng).setContent(
