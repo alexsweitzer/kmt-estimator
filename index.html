@@ -854,9 +854,16 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
         <div class="field"><label>End Date <span style="font-weight:400;color:var(--text-muted)">(multi-day trips)</span></label><input type="date" id="ld-date-end"></div>
         <div class="field">
           <label>Transport</label>
-          <select id="ld-mode" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+          <select id="ld-mode" onchange="onLoadModeChange()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
             <option value="land">🚚 By Land</option>
             <option value="sea">⛵ By Sea</option>
+          </select>
+        </div>
+        <div class="field sea-only" id="ld-sea-service-field" style="display:none">
+          <label>Sea Service</label>
+          <select id="ld-sea-service" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+            <option value="tow">⛵ Tow Boat</option>
+            <option value="captain">🧭 Captain Hire</option>
           </select>
         </div>
         <div class="field"><label>Trip Price ($)</label><input type="number" step="0.01" id="ld-trip-price" placeholder="0.00"></div>
@@ -868,17 +875,17 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
             <option value="Invoiced">Invoiced</option>
           </select>
         </div>
-        <div class="field full">
+        <div class="field full land-only">
           <label>Truck</label>
           <select id="ld-truck-select" onchange="onTruckSelect()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"><option value="">— Select Truck —</option></select>
           <div id="ld-truck-track-note" style="font-size:11px;color:var(--text-muted);margin-top:2px">Selecting a truck automatically links its live tracking when it's In Progress.</div>
         </div>
-        <div class="field"><label>Truck # <span style="font-weight:400;color:var(--text-muted)">(or type manually)</span></label><input type="text" id="ld-truck" placeholder="Truck #" oninput="onTruckManualInput()"></div>
-        <div class="field full">
+        <div class="field land-only"><label>Truck # <span style="font-weight:400;color:var(--text-muted)">(or type manually)</span></label><input type="text" id="ld-truck" placeholder="Truck #" oninput="onTruckManualInput()"></div>
+        <div class="field full land-only">
           <label>Trailer</label>
           <select id="ld-trailer-select" onchange="onTrailerSelectChange()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"><option value="">— Select Trailer —</option><option value="customer">Customer Trailer</option></select>
         </div>
-        <div class="field"><label>Trailer # <span style="font-weight:400;color:var(--text-muted)">(or type manually)</span></label><input type="text" id="ld-trailer" placeholder="Trailer #"></div>
+        <div class="field land-only"><label>Trailer # <span style="font-weight:400;color:var(--text-muted)">(or type manually)</span></label><input type="text" id="ld-trailer" placeholder="Trailer #"></div>
 
         <!-- Customer Trailer Info (shown only when Customer Trailer selected) -->
         <div id="customer-trailer-section" class="field full" style="display:none">
@@ -953,7 +960,86 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       </div>
     </div>
 
-    <div class="card">
+
+    <!-- ══ CAPTAIN'S LOG — sea loads only ══ -->
+    <div class="card sea-only" id="ld-card-captainlog" style="display:none">
+      <div class="card-title">Captain's Log</div>
+      <div class="form-grid">
+        <div class="field"><label>Captain</label>
+          <select id="cl-captain" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"><option value="">— Select Captain —</option></select>
+        </div>
+        <div class="field"><label>Mate</label>
+          <select id="cl-mate" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"><option value="">— None —</option></select>
+        </div>
+        <div class="field"><label>Vessel</label>
+          <select id="cl-vessel" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"><option value="">— Select Vessel —</option></select>
+        </div>
+        <div class="field"><label>Time Out</label><input type="time" id="cl-time-out" oninput="calcUnderway()"></div>
+        <div class="field"><label>Time In</label><input type="time" id="cl-time-in" oninput="calcUnderway()"></div>
+        <div class="field"><label>Hours Underway</label><input type="text" id="cl-underway" readonly style="background:var(--gray-50);color:var(--text-muted)"></div>
+        <div class="field full"><label>Area Covered</label><input type="text" id="cl-area" placeholder="e.g. Kent Narrows → Annapolis, Eastern Bay"></div>
+      </div>
+
+      <div style="margin-top:1rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Tows</div>
+          <div style="font-size:12px;color:var(--text-muted)">Total: <strong id="cl-tows-total">$0.00</strong></div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="rate-table" style="min-width:420px">
+            <thead><tr><th>#</th><th>Tow / Job</th><th>Price ($)</th><th></th></tr></thead>
+            <tbody id="clTowsBody"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn sm" onclick="addTowRow()" style="margin-top:0.5rem">+ Add Tow</button>
+      </div>
+
+      <div style="margin-top:1.25rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Purchases</div>
+          <div style="font-size:12px;color:var(--text-muted)">Total: <strong id="cl-purch-total">$0.00</strong></div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="rate-table" style="min-width:420px">
+            <thead><tr><th>#</th><th>Purchase</th><th>Cost ($)</th><th></th></tr></thead>
+            <tbody id="clPurchBody"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn sm" onclick="addPurchaseRow()" style="margin-top:0.5rem">+ Add Purchase</button>
+      </div>
+    </div>
+
+    <!-- ══ PRE / POST CHECKLISTS — sea loads only ══ -->
+    <div class="card sea-only" id="ld-card-checklists" style="display:none">
+      <div class="card-title">Vessel Checklists</div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;flex-wrap:wrap;gap:6px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Pre-Departure Checklist</div>
+        <div style="display:flex;gap:6px">
+          <span id="cl-pre-count" style="font-size:11px;color:var(--text-muted);align-self:center"></span>
+          <button type="button" class="btn sm" onclick="checkAllCL('pre',true)" style="font-size:11px;padding:3px 10px;color:var(--green);border-color:var(--green);background:var(--green-bg)">✓ All</button>
+          <button type="button" class="btn sm" onclick="checkAllCL('pre',false)" style="font-size:11px;padding:3px 10px">Clear</button>
+        </div>
+      </div>
+      <div id="clPreList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:7px;margin-bottom:1.5rem"></div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;flex-wrap:wrap;gap:6px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted)">Post-Trip Checklist</div>
+        <div style="display:flex;gap:6px">
+          <span id="cl-post-count" style="font-size:11px;color:var(--text-muted);align-self:center"></span>
+          <button type="button" class="btn sm" onclick="checkAllCL('post',true)" style="font-size:11px;padding:3px 10px;color:var(--green);border-color:var(--green);background:var(--green-bg)">✓ All</button>
+          <button type="button" class="btn sm" onclick="checkAllCL('post',false)" style="font-size:11px;padding:3px 10px">Clear</button>
+        </div>
+      </div>
+      <div id="clPostList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:7px;margin-bottom:1.25rem"></div>
+
+      <div class="field full">
+        <label>Notes About Pre or Post Trip</label>
+        <textarea id="cl-notes" rows="3" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:14px;color:var(--text);resize:vertical" placeholder="Anything found during pre-departure or post-trip checks..."></textarea>
+      </div>
+    </div>
+
+    <div class="card land-only" id="ld-card-mileage">
       <div class="card-title">Mileage</div>
       <div class="form-grid">
         <div class="field"><label>Start Mileage</label><input type="number" id="ld-miles-start" placeholder="0" oninput="calcTotalMiles()"></div>
@@ -962,7 +1048,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       </div>
     </div>
 
-    <div class="card">
+    <div class="card land-only" id="ld-card-fuel">
       <div class="card-title">Fuel Log</div>
       <div style="overflow-x:auto">
         <table class="rate-table" style="min-width:500px">
@@ -995,7 +1081,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     </div>
 
     <!-- PAGE 3: PRE-TRIP INSPECTION -->
-    <div class="card">
+    <div class="card land-only" id="ld-card-inspection">
       <div class="card-title">Driver Pre-Trip Inspection Report</div>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">Mark each item OK or Not OK.</p>
 
@@ -1628,6 +1714,7 @@ function bootApp(){
   loadVehiclePositions();
   loadBidsFromDB();
   initEstimateDates();
+  renderCLChecklists();
 }
 
 // Local-time YYYY-MM-DD (toISOString would roll to tomorrow after 8pm ET)
@@ -2536,6 +2623,10 @@ function getLoadFormData() {
     ct_vin: txt('ld-ct-vin'),
     ct_plate: txt('ld-ct-plate'),
     ct_axles: num('ld-ct-axles'),
+    sea_service: (document.getElementById('ld-mode') && document.getElementById('ld-mode').value === 'sea')
+                 ? ((document.getElementById('ld-sea-service') || {}).value || 'tow') : null,
+    captain_log: (document.getElementById('ld-mode') && document.getElementById('ld-mode').value === 'sea')
+                 ? getCaptainLogData() : null,
     created_by: currentSession ? currentSession.username : ''
   };
 }
@@ -2712,6 +2803,10 @@ function editLoad(id) {
   restoreDamageAreas(l.damage_areas);
   restoreInspectionData(l.truck_inspection, 'truck');
   restoreInspectionData(l.trailer_inspection, 'trailer');
+  const ssEl = document.getElementById('ld-sea-service');
+  if (ssEl) ssEl.value = l.sea_service || 'tow';
+  restoreCaptainLog(l.captain_log);
+  onLoadModeChange();
   restorePhotos(l.pretrip_photos, l.posttrip_photos);
   restorePermits(l.state_permits);
   // Restore customer trailer info
@@ -2780,6 +2875,9 @@ function clearLoadForm() {
   ].forEach(id => { const el = document.getElementById(id); syncAllFtIn(); if (el) el.value = ''; });
   document.getElementById('ld-status').value = 'In Progress';
   const modeSel = document.getElementById('ld-mode'); if (modeSel) modeSel.value = 'land';
+  const ssSel = document.getElementById('ld-sea-service'); if (ssSel) ssSel.value = 'tow';
+  clearCaptainLog();
+  onLoadModeChange();
   document.getElementById('ld-vehicle-satisfactory').checked = false;
   const trailSel = document.getElementById('ld-trailer-select'); if(trailSel) trailSel.value='';
   const ctSec = document.getElementById('customer-trailer-section'); if(ctSec) ctSec.style.display='none';
@@ -2801,12 +2899,197 @@ function clearLoadForm() {
   prefillDriverName();
 }
 
+
+// ══════════════════════════════════════════════
+// CAPTAIN'S LOG (sea loads)
+// Mirrors the paper Captains_Log form.
+// ══════════════════════════════════════════════
+const CL_PRE_ITEMS = [
+  'Port Battery On','Starboard Battery On','House Battery On','Motors Trimmed Down',
+  'Oil Level in Port Motor','Oil Level in Starboard Motor','Spare Fuel Jugs',
+  'Fuel Level','VHFs','Hailer Horn','GPS','Sonar','Radar',
+  'Nav/Anc Lights','Strobe Lights','Work Lights','Search Light','PFDs','Flares','Jump Pack'
+];
+const CL_POST_ITEMS = [
+  'Oil Level in Port Motor','Oil Level in Starboard Motor','Fuel Level','Motors Flushed',
+  'Motors Trimmed Up','VHFs','Hailer Horn','Spare Fuel Jugs',
+  'GPS','Sonar','Radar','Nav/Anc Lights','Strobe Lights','Work Lights','Jump Pack',
+  'Search Light','PFDs','Flares','House Batt OFF','Port Batt OFF','Stbd Batt OFF','Doors Closed'
+];
+const clKey = (phase, item) => 'cl_' + phase + '_' + item.replace(/[^a-z0-9]/gi,'_');
+
+function renderCLChecklists(){
+  [['pre',CL_PRE_ITEMS,'clPreList'],['post',CL_POST_ITEMS,'clPostList']].forEach(([phase,items,elId])=>{
+    const box = document.getElementById(elId);
+    if(!box) return;
+    box.innerHTML = items.map(item=>{
+      const id = clKey(phase,item);
+      return `<label class="chk-label" style="padding:5px 8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--gray-50)">
+        <input type="checkbox" id="${id}" onchange="updateCLCounts()">
+        <span class="chk-box"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
+        <span style="font-size:12.5px">${item}</span>
+      </label>`;
+    }).join('');
+  });
+  updateCLCounts();
+}
+
+function updateCLCounts(){
+  [['pre',CL_PRE_ITEMS,'cl-pre-count'],['post',CL_POST_ITEMS,'cl-post-count']].forEach(([phase,items,elId])=>{
+    const el = document.getElementById(elId);
+    if(!el) return;
+    const done = items.filter(i=>{ const c=document.getElementById(clKey(phase,i)); return c && c.checked; }).length;
+    el.textContent = done + ' / ' + items.length;
+    el.style.color = done===items.length ? 'var(--green)' : 'var(--text-muted)';
+  });
+}
+
+function checkAllCL(phase, val){
+  (phase==='pre'?CL_PRE_ITEMS:CL_POST_ITEMS).forEach(i=>{
+    const c=document.getElementById(clKey(phase,i)); if(c) c.checked=!!val;
+  });
+  updateCLCounts();
+}
+
+function getCLChecklist(phase){
+  const items = phase==='pre'?CL_PRE_ITEMS:CL_POST_ITEMS;
+  const out={};
+  items.forEach(i=>{ const c=document.getElementById(clKey(phase,i)); out[i]=!!(c&&c.checked); });
+  return out;
+}
+
+function restoreCLChecklist(phase, data){
+  const items = phase==='pre'?CL_PRE_ITEMS:CL_POST_ITEMS;
+  items.forEach(i=>{ const c=document.getElementById(clKey(phase,i)); if(c) c.checked=!!(data&&data[i]); });
+}
+
+// ── Tows / Purchases repeating rows ──
+function clRowHtml(kind, idx, desc, amt){
+  const body = kind==='tow' ? 'clTowsBody' : 'clPurchBody';
+  return `<tr>
+    <td style="color:var(--text-muted);width:28px">${idx+1}</td>
+    <td><input type="text" class="cl-${kind}-desc" value="${escAttr(desc||'')}" placeholder="${kind==='tow'?'Vessel / job description':'Item or vendor'}" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:5px;font-size:13px"></td>
+    <td><input type="number" step="0.01" class="cl-${kind}-amt" value="${amt==null?'':amt}" placeholder="0.00" oninput="calcCLTotals()" style="width:110px;padding:5px 7px;border:1px solid var(--border);border-radius:5px;font-size:13px"></td>
+    <td style="width:34px"><button type="button" class="btn sm danger" onclick="this.closest('tr').remove();calcCLTotals()" style="padding:3px 8px">✕</button></td>
+  </tr>`;
+}
+function addTowRow(desc,amt){
+  const b=document.getElementById('clTowsBody'); if(!b) return;
+  b.insertAdjacentHTML('beforeend', clRowHtml('tow', b.rows.length, desc, amt));
+  calcCLTotals();
+}
+function addPurchaseRow(desc,amt){
+  const b=document.getElementById('clPurchBody'); if(!b) return;
+  b.insertAdjacentHTML('beforeend', clRowHtml('purch', b.rows.length, desc, amt));
+  calcCLTotals();
+}
+function collectCLRows(kind){
+  const body=document.getElementById(kind==='tow'?'clTowsBody':'clPurchBody');
+  if(!body) return [];
+  return Array.from(body.rows).map(tr=>({
+    desc: (tr.querySelector('.cl-'+kind+'-desc')||{}).value || '',
+    amount: parseFloat((tr.querySelector('.cl-'+kind+'-amt')||{}).value) || 0
+  })).filter(r=>r.desc || r.amount);
+}
+function calcCLTotals(){
+  const t=collectCLRows('tow').reduce((s,r)=>s+r.amount,0);
+  const p=collectCLRows('purch').reduce((s,r)=>s+r.amount,0);
+  const te=document.getElementById('cl-tows-total'); if(te) te.textContent=fmt(t);
+  const pe=document.getElementById('cl-purch-total'); if(pe) pe.textContent=fmt(p);
+}
+
+// ── Hours underway (handles crossing midnight) ──
+function calcUnderway(){
+  const out=(document.getElementById('cl-time-out')||{}).value;
+  const inn=(document.getElementById('cl-time-in')||{}).value;
+  const el=document.getElementById('cl-underway');
+  if(!el) return;
+  if(!out||!inn){ el.value=''; return; }
+  const toMin=t=>{const[a,b]=t.split(':').map(Number);return a*60+b;};
+  let d=toMin(inn)-toMin(out);
+  if(d<0) d+=1440; // overnight run
+  el.value = Math.floor(d/60)+'h '+String(d%60).padStart(2,'0')+'m';
+}
+
+// ── Vessel dropdown, sourced from the sea rate sheet ──
+function populateCLVessels(){
+  const sel=document.getElementById('cl-vessel');
+  if(!sel) return;
+  const cur=sel.value;
+  let list=[];
+  try{ list=(SEA().vessels||[]).map(v=>v.name); }catch(e){ list=[]; }
+  sel.innerHTML='<option value="">— Select Vessel —</option>'+list.map(n=>`<option value="${escAttr(n)}">${n}</option>`).join('');
+  if(cur){ if(!list.includes(cur)) sel.insertAdjacentHTML('beforeend',`<option value="${escAttr(cur)}">${cur}</option>`); sel.value=cur; }
+}
+
+// ── Gather / restore / reset ──
+function getCaptainLogData(){
+  return {
+    captain: (document.getElementById('cl-captain')||{}).value || null,
+    mate: (document.getElementById('cl-mate')||{}).value || null,
+    vessel: (document.getElementById('cl-vessel')||{}).value || null,
+    time_out: (document.getElementById('cl-time-out')||{}).value || null,
+    time_in: (document.getElementById('cl-time-in')||{}).value || null,
+    hours_underway: (document.getElementById('cl-underway')||{}).value || null,
+    area_covered: (document.getElementById('cl-area')||{}).value || null,
+    tows: collectCLRows('tow'),
+    purchases: collectCLRows('purch'),
+    tows_total: collectCLRows('tow').reduce((s,r)=>s+r.amount,0),
+    purchases_total: collectCLRows('purch').reduce((s,r)=>s+r.amount,0),
+    pre_checklist: getCLChecklist('pre'),
+    post_checklist: getCLChecklist('post'),
+    checklist_notes: (document.getElementById('cl-notes')||{}).value || null
+  };
+}
+
+function restoreCaptainLog(cl){
+  cl = cl || {};
+  const sv=(id,v)=>{const el=document.getElementById(id); if(el) el.value=v||'';};
+  populateCLVessels();
+  setDriverSelect('cl-captain', cl.captain);
+  setDriverSelect('cl-mate', cl.mate);
+  const ves=document.getElementById('cl-vessel');
+  if(ves && cl.vessel){ if(!Array.from(ves.options).some(o=>o.value===cl.vessel)) ves.insertAdjacentHTML('beforeend',`<option value="${escAttr(cl.vessel)}">${cl.vessel}</option>`); ves.value=cl.vessel; }
+  sv('cl-time-out', cl.time_out); sv('cl-time-in', cl.time_in);
+  sv('cl-area', cl.area_covered); sv('cl-notes', cl.checklist_notes);
+  const tb=document.getElementById('clTowsBody'); if(tb) tb.innerHTML='';
+  const pb=document.getElementById('clPurchBody'); if(pb) pb.innerHTML='';
+  (cl.tows||[]).forEach(r=>addTowRow(r.desc, r.amount));
+  (cl.purchases||[]).forEach(r=>addPurchaseRow(r.desc, r.amount));
+  restoreCLChecklist('pre', cl.pre_checklist);
+  restoreCLChecklist('post', cl.post_checklist);
+  calcUnderway(); calcCLTotals(); updateCLCounts();
+}
+
+function clearCaptainLog(){ restoreCaptainLog({}); }
+
+// ── Show the right form for the transport mode ──
+function onLoadModeChange(){
+  const mode=(document.getElementById('ld-mode')||{}).value||'land';
+  const isSea = mode==='sea';
+  document.querySelectorAll('#loads-form-view .sea-only').forEach(el=>{ el.style.display = isSea ? '' : 'none'; });
+  document.querySelectorAll('#loads-form-view .land-only').forEach(el=>{ el.style.display = isSea ? 'none' : ''; });
+  if(isSea){
+    populateCLVessels();
+    const ct=document.getElementById('customer-trailer-section'); if(ct) ct.style.display='none';
+  } else {
+    // Customer-trailer block has its own show/hide rule; don't force it open
+    const ct=document.getElementById('customer-trailer-section');
+    const ts=document.getElementById('ld-trailer-select');
+    if(ct) ct.style.display = (ts && ts.value==='customer') ? '' : 'none';
+  }
+}
+
 // ── BID PREFILL ──
 function populateBidSelect() {
   const sel = document.getElementById('ld-bid-select');
   if (!sel) return;
   sel.innerHTML = '<option value="">— Select a saved bid to pre-fill —</option>' +
-    bids.map(b => `<option value="${b.id}">${b.bid_date || ''} · ${b.customer || 'Unnamed'} · ${b.boat || ''} · ${[b.pickup_name||b.pickup,''].filter(Boolean)[0]||'?'} → ${[b.drop_name||b.drop_location,''].filter(Boolean)[0]||'?'}</option>`).join('');
+    bids.map(b => {
+      const tm = BID_TYPE_META[bidType(b)];
+      const lines = bidSubline(b);
+      return `<option value="${b.id}">${tm.icon} ${b.bid_date || ''} · ${b.customer || 'Unnamed'} · ${lines[1]}</option>`;
+    }).join('');
 }
 
 function prefillFromBid() {
@@ -2817,6 +3100,7 @@ function prefillFromBid() {
   const sv = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
   // Carry the transport mode from the bid
   (function(){ const ms = document.getElementById('ld-mode'); if (ms) ms.value = b.transport_mode === 'sea' ? 'sea' : 'land'; })();
+  onLoadModeChange();
   // Customer
   sv('ld-customer', b.customer);
   // Boat / load info
@@ -2839,6 +3123,30 @@ function prefillFromBid() {
   // Trip price carried over from the bid
   const tpEl = document.getElementById('ld-trip-price');
   if (tpEl && b.trip_price != null) tpEl.value = b.trip_price;
+  // Sea bids: carry the service type and seed the Captain's Log
+  if (b.transport_mode === 'sea') {
+    const sd = b.sea_data || {};
+    const isCap = sd.kind === 'captain';
+    const ssEl = document.getElementById('ld-sea-service');
+    if (ssEl) ssEl.value = isCap ? 'captain' : 'tow';
+    onLoadModeChange();
+    populateCLVessels();
+    if (isCap) {
+      const v = sd.vessel || {};
+      sv('ld-make', v.make || ''); sv('ld-model', v.model || '');
+      sv('ld-boatname', v.name || ''); sv('ld-loa', v.loa || '');
+      sv('ld-pickup-name', sd.pickup); sv('ld-delivery-name', sd.destination);
+      sv('ld-contact', sd.phone); applyPhoneFormat('ld-contact');
+      syncAllFtIn();
+    } else if (sd.vessel) {
+      const ves = document.getElementById('cl-vessel');
+      if (ves) { if (!Array.from(ves.options).some(o => o.value === sd.vessel)) ves.insertAdjacentHTML('beforeend', `<option value="${escAttr(sd.vessel)}">${sd.vessel}</option>`); ves.value = sd.vessel; }
+    }
+    const areaEl = document.getElementById('cl-area');
+    if (areaEl && !areaEl.value && (sd.pickup || sd.destination)) {
+      areaEl.value = [sd.pickup, sd.destination].filter(Boolean).join(' → ');
+    }
+  }
   // Date = when the load is created, not the bid date. Only fill if still blank.
   const dEl = document.getElementById('ld-date');
   if (dEl && !dEl.value) dEl.value = new Date().toISOString().slice(0,10);
@@ -4682,12 +4990,12 @@ async function loadDriverRoster(){
 }
 
 function populateDriverSelects(){
-  ['ld-driver','ld-codriver'].forEach(id => {
+  const PLACEHOLDERS = {'ld-driver':'— Select Driver —','ld-codriver':'— None —','cl-captain':'— Select Captain —','cl-mate':'— None —'};
+  ['ld-driver','ld-codriver','cl-captain','cl-mate'].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel || sel.tagName !== 'SELECT') return;
     const cur = sel.value; // keep whatever is already chosen
-    const isCo = id === 'ld-codriver';
-    let html = `<option value="">${isCo ? '— None —' : '— Select Driver —'}</option>`;
+    let html = `<option value="">${PLACEHOLDERS[id] || '— Select —'}</option>`;
     html += driverRoster.map(d => `<option value="${escAttr(d.name)}">${d.name}</option>`).join('');
     // If the saved value isn't in the roster (e.g. an old free-text name), keep it as an option
     // so editing an old load doesn't silently wipe its driver.
