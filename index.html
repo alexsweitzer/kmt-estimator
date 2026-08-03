@@ -1209,6 +1209,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
         <select id="rpt-type" onchange="updateReportUI()">
           <option value="bids">Bid & Revenue Summary</option>
           <option value="loads">Load Activity Summary</option>
+          <option value="completed">Completed Loads Log</option>
           <option value="combined">Combined Overview</option>
         </select>
       </div>
@@ -4169,7 +4170,7 @@ function updateReportUI() {
   const type = document.getElementById('rpt-type').value;
   const statusField = document.getElementById('rpt-statusfield');
   const driverField = document.getElementById('rpt-driverfield');
-  if (type === 'loads') {
+  if (type === 'loads' || type === 'completed') {
     if (statusField) statusField.style.display = 'none';
   } else {
     if (statusField) statusField.style.display = '';
@@ -4248,6 +4249,7 @@ async function runReport() {
 
   if (type === 'bids') renderBidsReport(filteredBids, groupBy);
   else if (type === 'loads') renderLoadsReport(filteredLoads, groupBy);
+  else if (type === 'completed') renderCompletedLoadsReport(filteredLoads, groupBy);
   else renderCombinedReport(filteredBids, filteredLoads);
 
   document.getElementById('rpt-empty').style.display = 'none';
@@ -4328,6 +4330,61 @@ function renderBidsReport(data, groupBy) {
     <td>${fmt(totalTolls)}</td>
     <td style="${totalProfit>=0?'color:var(--green)':'color:var(--red)'}">${totalProfit<0?'−':'+'}${fmt(Math.abs(totalProfit))}</td>
     <td>—</td>
+  </tr>`;
+}
+
+function renderCompletedLoadsReport(data, groupBy) {
+  // Completed loads only, regardless of the status the user picked elsewhere
+  const rows = data.filter(l => l.status === 'Completed');
+  lastReportRows = rows;
+
+  const seaCount = rows.filter(l => l.transport_mode === 'sea').length;
+  const totalMiles = rows.reduce((s,l)=>s+(parseFloat(l.miles_total)||0),0);
+  const totalPrice = rows.reduce((s,l)=>s+(parseFloat(l.trip_price)||0),0);
+  const crew = new Set(rows.map(l=>l.driver).filter(Boolean));
+
+  document.getElementById('rpt-kpis').innerHTML = `
+    <div class="metric highlight"><div class="m-label">Completed Loads</div><div class="m-value pos">${rows.length}</div></div>
+    <div class="metric highlight"><div class="m-label">Total Revenue</div><div class="m-value">${fmt(totalPrice)}</div></div>
+    <div class="metric"><div class="m-label">Total Miles</div><div class="m-value">${Math.round(totalMiles).toLocaleString()}</div></div>
+    <div class="metric"><div class="m-label">Avg Price / Load</div><div class="m-value">${rows.length?fmt(totalPrice/rows.length):fmt(0)}</div></div>
+    <div class="metric"><div class="m-label">By Sea</div><div class="m-value">${seaCount}</div></div>
+    <div class="metric"><div class="m-label">Drivers / Captains</div><div class="m-value">${crew.size}</div></div>`;
+
+  renderBarChart(rows, 'Completed Loads by Month', 'date', 'trip_price');
+
+  document.getElementById('rpt-table-title').textContent = 'Completed Loads';
+  document.getElementById('rpt-count').textContent = rows.length + ' completed';
+
+  if (groupBy !== 'none') { renderGroupedTable(rows, groupBy, true); return; }
+
+  document.getElementById('rpt-thead').innerHTML = `<tr>
+    <th>Date</th><th>Driver</th><th>Customer</th><th>Boat</th>
+    <th>Pickup</th><th>Drop</th><th>Total Miles</th><th>Price</th>
+  </tr>`;
+
+  document.getElementById('rpt-tbody').innerHTML = rows.map(l => {
+    const icon = l.transport_mode === 'sea' ? '⛵ ' : '';
+    const boat = [l.make,l.model].filter(Boolean).join(' ') || l.boatname || '—';
+    const pickup = l.pickup_name || l.pickup_city || '—';
+    const drop = l.delivery_name || l.delivery_city || '—';
+    const miles = l.transport_mode === 'sea' ? '—' : (l.miles_total != null && l.miles_total !== '' ? Math.round(parseFloat(l.miles_total)).toLocaleString() : '—');
+    return `<tr>
+      <td>${l.date||'—'}</td>
+      <td>${l.driver||'—'}</td>
+      <td>${l.customer||'—'}</td>
+      <td style="font-size:12px">${icon}${boat}</td>
+      <td style="font-size:11px">${pickup}</td>
+      <td style="font-size:11px">${drop}</td>
+      <td>${miles}</td>
+      <td>${fmt(parseFloat(l.trip_price)||0)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('rpt-tfoot').innerHTML = `<tr>
+    <td colspan="6"><strong>TOTALS</strong></td>
+    <td><strong>${Math.round(totalMiles).toLocaleString()} mi</strong></td>
+    <td><strong>${fmt(totalPrice)}</strong></td>
   </tr>`;
 }
 
@@ -4535,8 +4592,16 @@ function exportReportCSV() {
       (b.km_alloc||0).toFixed(2),(b.sms_alloc||0).toFixed(2),(b.profit||0).toFixed(2),b.status
     ].map(v=>`"${v}"`).join(','));
     csv = [hdr.join(','),...rows].join('\n');
+  } else if (type === 'completed') {
+    const hdr = ['Date','Driver','Customer','Boat','Pickup','Drop','Total Miles','Price'];
+    const rows = lastReportRows.map(l => [
+      l.date||'', l.driver||'', l.customer||'',
+      (l.transport_mode==='sea'?'(Sea) ':'')+([l.make,l.model].filter(Boolean).join(' ')||l.boatname||''),
+      l.pickup_name||l.pickup_city||'', l.delivery_name||l.delivery_city||'',
+      l.transport_mode==='sea'?'':(l.miles_total||0), (parseFloat(l.trip_price)||0).toFixed(2)
+    ].map(v=>`"${v}"`).join(','));
+    csv = [hdr.join(','),...rows].join('\n');
   } else {
-    const hdr = ['Date','Driver','Customer','Boat','Pickup City','Delivery City','Miles','Status'];
     const rows = lastReportRows.map(l => [
       l.date,l.driver||'',l.customer||'',
       [l.make,l.model].filter(Boolean).join(' ')||l.boatname||'',
