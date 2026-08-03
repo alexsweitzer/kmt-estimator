@@ -1,4 +1,4 @@
-<!-- KMT Employee Portal v3.3 -->
+<!-- KMT Employee Portal v3.4 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -4766,7 +4766,7 @@ function buildBreakdownYears(){
   const cur = sel.value;
   sel.innerHTML = '<option value="all">All Time</option>' +
     list.map(y => `<option value="${y}">${y}</option>`).join('');
-  sel.value = cur || (list[0] || 'all');
+  sel.value = cur || 'all';
 }
 
 function renderBreakdown(){
@@ -4796,7 +4796,9 @@ function renderBreakdown(){
     <div class="metric"><div class="m-label">KM Balance</div><div class="m-value">${fmt(currentPaybackBalance())}</div></div>
     ${needsEntry?`<div class="metric"><div class="m-label" style="color:var(--amber)">Need Manual Entry</div><div class="m-value" style="color:var(--amber)">${needsEntry}</div></div>`:''}`;
 
-  monthsEl.innerHTML = monthKeys.map(mk => renderMonthBlock(mk, groups[mk], paybackByMonth[mk])).join('');
+  monthsEl.innerHTML =
+    `<div style="font-size:11px;color:var(--text-muted);margin-bottom:0.75rem">Loaded ${breakdownRows.length} historical + ${liveRowsFromLoads().length} live rows · showing ${rows.length} for ${yearSel==='all'?'All Time':yearSel}</div>`
+    + monthKeys.map(mk => renderMonthBlock(mk, groups[mk], paybackByMonth[mk])).join('');
 }
 
 // Running KM balance per month (SMS retired).
