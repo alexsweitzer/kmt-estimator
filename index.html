@@ -1,4 +1,4 @@
-<!-- KMT Employee Portal v3.6 -->
+<!-- KMT Employee Portal v3.7 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1209,6 +1209,29 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <button class="btn" onclick="renderBreakdown()">↻ Refresh</button>
       <button class="btn" onclick="exportBreakdownCSV()">⬇ Export CSV</button>
       <button class="btn" onclick="exportBreakdownPDF()">⬇ Export PDF</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border)">
+      <input type="text" id="bd-search" placeholder="Search customer, boat, pickup, drop…" oninput="renderBreakdown()" style="flex:1;min-width:200px;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;color:var(--text)">
+      <select id="bd-driver" onchange="renderBreakdown()" style="padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none;min-width:140px"><option value="">All drivers</option></select>
+      <select id="bd-source" onchange="renderBreakdown()" style="padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+        <option value="">All sources</option>
+        <option value="historical">Historical</option>
+        <option value="live">Live (all)</option>
+        <option value="bid">Live — from bid</option>
+        <option value="manual">Live — manual</option>
+        <option value="unmatched">Live — no bid</option>
+      </select>
+      <select id="bd-sort" onchange="renderBreakdown()" style="padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
+        <option value="date_asc">Date (oldest first)</option>
+        <option value="date_desc">Date (newest first)</option>
+        <option value="price_desc">Price (high → low)</option>
+        <option value="price_asc">Price (low → high)</option>
+        <option value="profit_desc">Profit (high → low)</option>
+        <option value="profit_asc">Profit (low → high)</option>
+        <option value="miles_desc">Miles (high → low)</option>
+        <option value="customer_asc">Customer (A–Z)</option>
+      </select>
+      <button class="btn sm" onclick="resetBreakdownFilters()">Clear</button>
     </div>
   </div>
 
@@ -4768,29 +4791,80 @@ function buildBreakdownYears(){
   sel.innerHTML = '<option value="all">All Time</option>' +
     list.map(y => `<option value="${y}">${y}</option>`).join('');
   sel.value = cur || 'all';
+  populateBreakdownDrivers();
+}
+
+function populateBreakdownDrivers(){
+  const sel = document.getElementById('bd-driver');
+  if (!sel) return;
+  const drivers = [...new Set(allBreakdownRows().map(r => (r.driver||'').trim()).filter(Boolean))].sort();
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">All drivers</option>' +
+    drivers.map(d => `<option value="${escAttr(d)}">${d}</option>`).join('');
+  if (cur && drivers.includes(cur)) sel.value = cur;
+}
+
+// Shared filter + sort, used by the table, CSV and PDF so all three agree.
+function filterSortBreakdownRows(){
+  const yearSel   = (document.getElementById('bd-year')||{}).value || 'all';
+  const q         = ((document.getElementById('bd-search')||{}).value || '').trim().toLowerCase();
+  const driverSel = (document.getElementById('bd-driver')||{}).value || '';
+  const srcSel    = (document.getElementById('bd-source')||{}).value || '';
+  const sortSel   = (document.getElementById('bd-sort')||{}).value || 'date_asc';
+
+  let rows = allBreakdownRows();
+  if (yearSel !== 'all') rows = rows.filter(r => (r.trip_date||'').slice(0,4) === yearSel);
+  if (q) rows = rows.filter(r => [r.customer,r.boat,r.pickup,r.drop_loc,r.driver].filter(Boolean).join(' ').toLowerCase().includes(q));
+  if (driverSel) rows = rows.filter(r => (r.driver||'').trim() === driverSel);
+  if (srcSel) rows = rows.filter(r => {
+    if (srcSel === 'historical') return r.is_historical;
+    if (srcSel === 'live') return !r.is_historical;
+    return r._src === srcSel; // bid | manual | unmatched
+  });
+
+  const cmp = {
+    date_asc:   (a,b) => (a.trip_date||'') < (b.trip_date||'') ? -1 : 1,
+    date_desc:  (a,b) => (a.trip_date||'') > (b.trip_date||'') ? -1 : 1,
+    price_desc: (a,b) => num(b.price)  - num(a.price),
+    price_asc:  (a,b) => num(a.price)  - num(b.price),
+    profit_desc:(a,b) => num(b.profit) - num(a.profit),
+    profit_asc: (a,b) => num(a.profit) - num(b.profit),
+    miles_desc: (a,b) => num(b.miles)  - num(a.miles),
+    customer_asc:(a,b)=> (a.customer||'').localeCompare(b.customer||'')
+  };
+  rows.sort(cmp[sortSel] || cmp.date_asc);
+  return { rows, sortSel };
+}
+
+function resetBreakdownFilters(){
+  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.value=v; };
+  set('bd-search',''); set('bd-driver',''); set('bd-source',''); set('bd-sort','date_asc');
+  renderBreakdown();
 }
 
 function renderBreakdown(){
+  const { rows, sortSel } = filterSortBreakdownRows();
   const yearSel = (document.getElementById('bd-year')||{}).value || 'all';
-  let rows = allBreakdownRows();
-  if (yearSel !== 'all') rows = rows.filter(r => (r.trip_date||'').slice(0,4) === yearSel);
-  rows.sort((a,b) => (a.trip_date||'') < (b.trip_date||'') ? -1 : 1);
 
   const monthsEl = document.getElementById('bd-months');
   const emptyEl = document.getElementById('bd-empty');
   if (!rows.length){ monthsEl.innerHTML=''; emptyEl.style.display=''; document.getElementById('bd-kpis').innerHTML=''; return; }
   emptyEl.style.display='none';
 
+  // Group by month; within each month, preserve the chosen sort order.
   const groups = {};
   rows.forEach(r => { const k=(r.trip_date||'').slice(0,7); (groups[k]=groups[k]||[]).push(r); });
-  const monthKeys = Object.keys(groups).sort();
-  const paybackByMonth = computePaybackBalances();
+  // Month block order: newest-first if a descending sort is active, else oldest-first.
+  const desc = /_desc$/.test(sortSel);
+  const monthKeys = Object.keys(groups).sort((a,b)=> desc ? (a<b?1:-1) : (a<b?-1:1));
+  const paybackByMonth = computePaybackBalances(); // full-ledger balances, unaffected by filters
 
   const sum = (f) => rows.reduce((s,r)=>s+(num(r[f])||0),0);
   const tPrice=sum('price'), tProfit=sum('profit'), tMiles=sum('miles');
   const needsEntry = rows.filter(r => r._src === 'unmatched').length;
+  const filtered = (document.getElementById('bd-search')||{}).value || (document.getElementById('bd-driver')||{}).value || (document.getElementById('bd-source')||{}).value;
   document.getElementById('bd-kpis').innerHTML = `
-    <div class="metric highlight"><div class="m-label">Trips${yearSel!=='all'?' ('+yearSel+')':''}</div><div class="m-value">${rows.length}</div></div>
+    <div class="metric highlight"><div class="m-label">Trips${filtered?' (filtered)':(yearSel!=='all'?' ('+yearSel+')':'')}</div><div class="m-value">${rows.length}</div></div>
     <div class="metric highlight"><div class="m-label">Gross Revenue</div><div class="m-value">${fmt(tPrice)}</div></div>
     <div class="metric"><div class="m-label">Net Profit</div><div class="m-value ${tProfit>=0?'pos':'neg'}">${tProfit<0?'−':''}${fmt(Math.abs(tProfit))}</div></div>
     <div class="metric"><div class="m-label">Total Miles</div><div class="m-value">${Math.round(tMiles).toLocaleString()}</div></div>
@@ -5045,9 +5119,8 @@ async function saveBreakdownConfig(){
 
 function exportBreakdownCSV(){
   const yearSel=(document.getElementById('bd-year')||{}).value||'all';
-  let rows=allBreakdownRows();
-  if(yearSel!=='all') rows=rows.filter(r=>(r.trip_date||'').slice(0,4)===yearSel);
-  rows.sort((a,b)=>(a.trip_date||'')<(b.trip_date||'')?-1:1);
+  const { rows }=filterSortBreakdownRows();
+  if(!rows.length){ showToast('Nothing to export'); return; }
   const hdr=['Date','Customer','Driver','Boat','Pickup','Drop','Miles','Price','Fuel','Driver Pay','Permit','Toll','Pilot','Maintenance','Insurance','Truck Payment','KM Payback','Profit','Source'];
   const lines=rows.map(r=>[
     r.trip_date,r.customer,r.driver,r.boat,r.pickup,r.drop_loc,
@@ -5068,10 +5141,9 @@ function round2(n){ return Math.round((num(n)||0)*100)/100; }
 function exportBreakdownPDF(){
   if (!window.jspdf || !window.jspdf.jsPDF) { showToast('PDF library still loading — try again'); return; }
   const yearSel = (document.getElementById('bd-year')||{}).value || 'all';
-  let rows = allBreakdownRows();
-  if (yearSel !== 'all') rows = rows.filter(r => (r.trip_date||'').slice(0,4) === yearSel);
+  const { rows, sortSel } = filterSortBreakdownRows();
   if (!rows.length){ showToast('Nothing to export'); return; }
-  rows.sort((a,b) => (a.trip_date||'') < (b.trip_date||'') ? -1 : 1);
+  const descOrder = /_desc$/.test(sortSel);
 
   showToast('Building PDF…');
   const { jsPDF } = window.jspdf;
@@ -5131,7 +5203,7 @@ function exportBreakdownPDF(){
 
   const groups={};
   rows.forEach(r=>{ const k=(r.trip_date||'').slice(0,7); (groups[k]=groups[k]||[]).push(r); });
-  const monthKeys=Object.keys(groups).sort();
+  const monthKeys=Object.keys(groups).sort((a,b)=> descOrder ? (a<b?1:-1) : (a<b?-1:1));
 
   monthKeys.forEach(mk => {
     curMonthKey = mk;
