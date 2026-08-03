@@ -1,4 +1,4 @@
-<!-- KMT Employee Portal v3.4 -->
+<!-- KMT Employee Portal v3.5 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1208,6 +1208,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <select id="bd-year" onchange="renderBreakdown()" style="padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"></select>
       <button class="btn" onclick="renderBreakdown()">↻ Refresh</button>
       <button class="btn" onclick="exportBreakdownCSV()">⬇ Export CSV</button>
+      <button class="btn" onclick="exportBreakdownPDF()">⬇ Export PDF</button>
     </div>
   </div>
 
@@ -4796,9 +4797,7 @@ function renderBreakdown(){
     <div class="metric"><div class="m-label">KM Balance</div><div class="m-value">${fmt(currentPaybackBalance())}</div></div>
     ${needsEntry?`<div class="metric"><div class="m-label" style="color:var(--amber)">Need Manual Entry</div><div class="m-value" style="color:var(--amber)">${needsEntry}</div></div>`:''}`;
 
-  monthsEl.innerHTML =
-    `<div style="font-size:11px;color:var(--text-muted);margin-bottom:0.75rem">Loaded ${breakdownRows.length} historical + ${liveRowsFromLoads().length} live rows · showing ${rows.length} for ${yearSel==='all'?'All Time':yearSel}</div>`
-    + monthKeys.map(mk => renderMonthBlock(mk, groups[mk], paybackByMonth[mk])).join('');
+  monthsEl.innerHTML = monthKeys.map(mk => renderMonthBlock(mk, groups[mk], paybackByMonth[mk])).join('');
 }
 
 // Running KM balance per month (SMS retired).
@@ -5064,6 +5063,135 @@ function exportBreakdownCSV(){
 }
 
 function round2(n){ return Math.round((num(n)||0)*100)/100; }
+
+// ── PDF export: landscape, one section per month, matching the on-screen table ──
+function exportBreakdownPDF(){
+  if (!window.jspdf || !window.jspdf.jsPDF) { showToast('PDF library still loading — try again'); return; }
+  const yearSel = (document.getElementById('bd-year')||{}).value || 'all';
+  let rows = allBreakdownRows();
+  if (yearSel !== 'all') rows = rows.filter(r => (r.trip_date||'').slice(0,4) === yearSel);
+  if (!rows.length){ showToast('Nothing to export'); return; }
+  rows.sort((a,b) => (a.trip_date||'') < (b.trip_date||'') ? -1 : 1);
+
+  showToast('Building PDF…');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter', orientation:'landscape' });
+  const PW = 792, PH = 612, M = 32;
+  const NAVY=[26,39,68], GRAY=[92,91,86], LINE=[221,221,216], GREEN=[22,120,60], RED=[176,42,42];
+  let y = M;
+
+  const money = (n) => { const v=num(n); return (v<0?'-$':'$')+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  const short = (s,max) => { s=(s==null?'':String(s)); return s.length>max ? s.slice(0,max-1)+'…' : s; };
+
+  // Column layout: label, x, width, align
+  const cols = [
+    ['Date', M, 52, 'l'], ['Customer', M+54, 78, 'l'], ['Driver', M+134, 62, 'l'],
+    ['Boat', M+198, 66, 'l'], ['Pickup', M+266, 60, 'l'], ['Drop', M+328, 60, 'l'],
+    ['Miles', M+392, 34, 'r'], ['Price', M+428, 50, 'r'], ['Fuel', M+480, 42, 'r'],
+    ['Driver', M+524, 44, 'r'], ['Perm', M+570, 36, 'r'], ['Toll', M+608, 32, 'r'],
+    ['Pilot', M+642, 34, 'r'], ['Maint', M+678, 40, 'r'], ['Ins', M+720, 40, 'r']
+  ];
+  // Right-most edge columns computed dynamically below (Truck, KM, Profit) would overflow letter width,
+  // so the PDF condenses to the operational columns; full detail remains in CSV.
+
+  function pageHeader(){
+    doc.setFillColor(...NAVY); doc.rect(0,0,PW,54,'F');
+    if (window.__kmtLogoData){ try{ doc.addImage(window.__kmtLogoData,'PNG',M,10,34,34);}catch(e){} }
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(14);
+    doc.text('Kentmorr Marine Transport', M+44, 26);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(200,208,220);
+    doc.text('Monthly Trip Breakdown — '+(yearSel==='all'?'All Time':yearSel), M+44, 42);
+    doc.setFontSize(8); doc.setTextColor(200,208,220);
+    doc.text('Generated '+new Date().toLocaleDateString(), PW-M, 34, {align:'right'});
+    y = 68;
+  }
+  function colHeader(){
+    doc.setFillColor(245,245,242); doc.rect(M, y, PW-2*M, 16, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...GRAY);
+    cols.forEach(c => doc.text(c[0].toUpperCase(), c[3]==='r'?c[1]+c[2]:c[1], y+11, {align:c[3]==='r'?'right':'left'}));
+    y += 18;
+  }
+  function needSpace(h, mk){ if (y+h > PH-M){ doc.addPage(); pageHeader(); if(mk){ monthTitle(mk); } colHeader(); } }
+  function monthTitle(mk){
+    const [yy,mm]=mk.split('-');
+    const name=new Date(yy,parseInt(mm)-1,1).toLocaleString('en-US',{month:'long',year:'numeric'});
+    const isLive = mk >= BREAKDOWN_CUTOVER.slice(0,7);
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...NAVY);
+    doc.text(name+(isLive?'  (Live)':'  (Historical)'), M, y+2); y += 12;
+  }
+
+  pageHeader();
+
+  // Group by month
+  const groups={};
+  rows.forEach(r=>{ const k=(r.trip_date||'').slice(0,7); (groups[k]=groups[k]||[]).push(r); });
+  const monthKeys=Object.keys(groups).sort();
+
+  monthKeys.forEach(mk => {
+    needSpace(60, null);
+    monthTitle(mk);
+    colHeader();
+    const mrows = groups[mk];
+    doc.setFont('helvetica','normal'); doc.setFontSize(7);
+    const cell = (r) => {
+      const vals = [
+        r.trip_date||'—', short(r.customer,16), short(r.driver,12), short(r.boat,12),
+        short(r.pickup,11), short(r.drop_loc,11),
+        r.miles!=null?Math.round(num(r.miles)).toLocaleString():'—',
+        money(r.price), money(r.fuel), money(r.driver_pay), money(r.permit),
+        money(r.toll), money(r.pilot), money(r.maint), money(r.ins)
+      ];
+      cols.forEach((c,i)=>{
+        if (i===0){ // small source dot before date on live rows
+          doc.setTextColor(30,30,28);
+        }
+        doc.setTextColor(30,30,28);
+        doc.text(String(vals[i]), c[3]==='r'?c[1]+c[2]:c[1], y+8, {align:c[3]==='r'?'right':'left'});
+      });
+      y += 12;
+    };
+    mrows.forEach(r => { needSpace(12, mk); cell(r); });
+
+    // Month totals
+    const col=(f)=>mrows.reduce((s,r)=>s+(num(r[f])||0),0);
+    const t={miles:col('miles'),price:col('price'),fuel:col('fuel'),driver:col('driver_pay'),
+      permit:col('permit'),toll:col('toll'),pilot:col('pilot'),maint:col('maint'),ins:col('ins'),profit:col('profit')};
+    needSpace(18, mk);
+    doc.setDrawColor(...LINE); doc.line(M, y, PW-M, y); y += 3;
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...NAVY);
+    const tvals = { 0:mrows.length+' MOVES', 6:Math.round(t.miles).toLocaleString(), 7:money(t.price),
+      8:money(t.fuel), 9:money(t.driver), 10:money(t.permit), 11:money(t.toll), 12:money(t.pilot),
+      13:money(t.maint), 14:money(t.ins) };
+    cols.forEach((c,i)=>{ if(tvals[i]!==undefined) doc.text(String(tvals[i]), c[3]==='r'?c[1]+c[2]:c[1], y+8, {align:c[3]==='r'?'right':'left'}); });
+    y += 12;
+    // Profit line for the month (its own row, right-aligned, colored)
+    doc.setTextColor(...(t.profit>=0?GREEN:RED));
+    doc.text('Month Profit: '+money(t.profit), PW-M, y+8, {align:'right'});
+    doc.setTextColor(30,30,28);
+    y += 20;
+  });
+
+  // Grand total summary
+  needSpace(40, null);
+  const gp=rows.reduce((s,r)=>s+(num(r.price)||0),0);
+  const gpr=rows.reduce((s,r)=>s+(num(r.profit)||0),0);
+  const gm=rows.reduce((s,r)=>s+(num(r.miles)||0),0);
+  doc.setFillColor(245,245,242); doc.rect(M, y, PW-2*M, 26, 'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...NAVY);
+  doc.text(`TOTALS (${rows.length} moves)`, M+8, y+17);
+  doc.text('Revenue '+money(gp)+'    Miles '+Math.round(gm).toLocaleString(), M+180, y+17);
+  doc.setTextColor(...(gpr>=0?GREEN:RED));
+  doc.text('Net Profit '+money(gpr), PW-M-8, y+17, {align:'right'});
+
+  // KM balance footnote
+  y += 40; needSpace(16,null);
+  doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
+  doc.text('KM Payback Balance (current): '+money(currentPaybackBalance()), M, y+8);
+
+  const fname = 'KMT_Trip_Breakdown_'+(yearSel==='all'?'AllTime':yearSel)+'_'+new Date().toISOString().slice(0,10)+'.pdf';
+  doc.save(fname);
+  showToast('PDF exported ✓');
+}
 
 // ══════════════════════════════════════════════
 // EQUIPMENT
