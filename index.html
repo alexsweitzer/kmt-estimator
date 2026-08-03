@@ -1,4 +1,4 @@
-<!-- KMT Employee Portal v3.5 -->
+<!-- KMT Employee Portal v3.6 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -5075,29 +5075,35 @@ function exportBreakdownPDF(){
 
   showToast('Building PDF…');
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ unit:'pt', format:'letter', orientation:'landscape' });
-  const PW = 792, PH = 612, M = 32;
+  // Tabloid (11x17) landscape = 1224 x 792 pt — wide enough for all 17 columns legibly.
+  const doc = new jsPDF({ unit:'pt', format:[1224,792], orientation:'landscape' });
+  const PW = 1224, PH = 792, M = 32;
   const NAVY=[26,39,68], GRAY=[92,91,86], LINE=[221,221,216], GREEN=[22,120,60], RED=[176,42,42];
   let y = M;
 
   const money = (n) => { const v=num(n); return (v<0?'-$':'$')+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
   const short = (s,max) => { s=(s==null?'':String(s)); return s.length>max ? s.slice(0,max-1)+'…' : s; };
 
-  // Column layout: label, x, width, align
-  const cols = [
-    ['Date', M, 52, 'l'], ['Customer', M+54, 78, 'l'], ['Driver', M+134, 62, 'l'],
-    ['Boat', M+198, 66, 'l'], ['Pickup', M+266, 60, 'l'], ['Drop', M+328, 60, 'l'],
-    ['Miles', M+392, 34, 'r'], ['Price', M+428, 50, 'r'], ['Fuel', M+480, 42, 'r'],
-    ['Driver', M+524, 44, 'r'], ['Perm', M+570, 36, 'r'], ['Toll', M+608, 32, 'r'],
-    ['Pilot', M+642, 34, 'r'], ['Maint', M+678, 40, 'r'], ['Ins', M+720, 40, 'r']
+  // Full column set. Widths sum to fit PW-2*M (=1160). label, x, width, align
+  const AW = PW - 2*M;
+  const specs = [
+    ['Date',      52, 'l'], ['Customer', 108, 'l'], ['Driver', 84, 'l'],
+    ['Boat',      92, 'l'], ['Pickup',    82, 'l'], ['Drop',   82, 'l'],
+    ['Miles',     42, 'r'], ['Price',     62, 'r'], ['Fuel',   56, 'r'],
+    ['Driver',    56, 'r'], ['Permit',    52, 'r'], ['Toll',   46, 'r'],
+    ['Pilot',     48, 'r'], ['Maint',     54, 'r'], ['Ins',    54, 'r'],
+    ['Truck',     54, 'r'], ['KM',        54, 'r'], ['Profit', 62, 'r']
   ];
-  // Right-most edge columns computed dynamically below (Truck, KM, Profit) would overflow letter width,
-  // so the PDF condenses to the operational columns; full detail remains in CSV.
+  // Build x positions from cumulative widths, scaled to exactly fill AW.
+  const totalW = specs.reduce((s,c)=>s+c[1],0);
+  const scale = AW / totalW;
+  let cx = M;
+  const cols = specs.map(c => { const w=c[1]*scale; const o=[c[0], cx, w, c[2]]; cx+=w; return o; });
 
   function pageHeader(){
     doc.setFillColor(...NAVY); doc.rect(0,0,PW,54,'F');
     if (window.__kmtLogoData){ try{ doc.addImage(window.__kmtLogoData,'PNG',M,10,34,34);}catch(e){} }
-    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(14);
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(15);
     doc.text('Kentmorr Marine Transport', M+44, 26);
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(200,208,220);
     doc.text('Monthly Trip Breakdown — '+(yearSel==='all'?'All Time':yearSel), M+44, 42);
@@ -5106,12 +5112,12 @@ function exportBreakdownPDF(){
     y = 68;
   }
   function colHeader(){
-    doc.setFillColor(245,245,242); doc.rect(M, y, PW-2*M, 16, 'F');
-    doc.setFont('helvetica','bold'); doc.setFontSize(6.5); doc.setTextColor(...GRAY);
-    cols.forEach(c => doc.text(c[0].toUpperCase(), c[3]==='r'?c[1]+c[2]:c[1], y+11, {align:c[3]==='r'?'right':'left'}));
+    doc.setFillColor(245,245,242); doc.rect(M, y, AW, 16, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...GRAY);
+    cols.forEach(c => doc.text(c[0].toUpperCase(), c[3]==='r'?c[1]+c[2]-2:c[1]+2, y+11, {align:c[3]==='r'?'right':'left'}));
     y += 18;
   }
-  function needSpace(h, mk){ if (y+h > PH-M){ doc.addPage(); pageHeader(); if(mk){ monthTitle(mk); } colHeader(); } }
+  let curMonthKey=null;
   function monthTitle(mk){
     const [yy,mm]=mk.split('-');
     const name=new Date(yy,parseInt(mm)-1,1).toLocaleString('en-US',{month:'long',year:'numeric'});
@@ -5119,72 +5125,74 @@ function exportBreakdownPDF(){
     doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...NAVY);
     doc.text(name+(isLive?'  (Live)':'  (Historical)'), M, y+2); y += 12;
   }
+  function needSpace(h){ if (y+h > PH-M){ doc.addPage(); pageHeader(); if(curMonthKey){ monthTitle(curMonthKey); } colHeader(); } }
 
   pageHeader();
 
-  // Group by month
   const groups={};
   rows.forEach(r=>{ const k=(r.trip_date||'').slice(0,7); (groups[k]=groups[k]||[]).push(r); });
   const monthKeys=Object.keys(groups).sort();
 
   monthKeys.forEach(mk => {
-    needSpace(60, null);
+    curMonthKey = mk;
+    needSpace(70);
     monthTitle(mk);
     colHeader();
     const mrows = groups[mk];
-    doc.setFont('helvetica','normal'); doc.setFontSize(7);
-    const cell = (r) => {
+    doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+    mrows.forEach(r => {
+      needSpace(13);
+      const profNeg = (num(r.profit)||0) < 0;
       const vals = [
-        r.trip_date||'—', short(r.customer,16), short(r.driver,12), short(r.boat,12),
-        short(r.pickup,11), short(r.drop_loc,11),
+        r.trip_date||'—', short(r.customer,20), short(r.driver,15), short(r.boat,16),
+        short(r.pickup,15), short(r.drop_loc,15),
         r.miles!=null?Math.round(num(r.miles)).toLocaleString():'—',
         money(r.price), money(r.fuel), money(r.driver_pay), money(r.permit),
-        money(r.toll), money(r.pilot), money(r.maint), money(r.ins)
+        money(r.toll), money(r.pilot), money(r.maint), money(r.ins),
+        money(r.truck_pmt), money(r.km_payback), money(r.profit)
       ];
       cols.forEach((c,i)=>{
-        if (i===0){ // small source dot before date on live rows
-          doc.setTextColor(30,30,28);
-        }
-        doc.setTextColor(30,30,28);
-        doc.text(String(vals[i]), c[3]==='r'?c[1]+c[2]:c[1], y+8, {align:c[3]==='r'?'right':'left'});
+        if (i===17) doc.setTextColor(...(profNeg?RED:GREEN));
+        else doc.setTextColor(30,30,28);
+        doc.text(String(vals[i]), c[3]==='r'?c[1]+c[2]-2:c[1]+2, y+8, {align:c[3]==='r'?'right':'left'});
       });
       y += 12;
-    };
-    mrows.forEach(r => { needSpace(12, mk); cell(r); });
+    });
 
-    // Month totals
+    // Month totals row
     const col=(f)=>mrows.reduce((s,r)=>s+(num(r[f])||0),0);
     const t={miles:col('miles'),price:col('price'),fuel:col('fuel'),driver:col('driver_pay'),
-      permit:col('permit'),toll:col('toll'),pilot:col('pilot'),maint:col('maint'),ins:col('ins'),profit:col('profit')};
-    needSpace(18, mk);
+      permit:col('permit'),toll:col('toll'),pilot:col('pilot'),maint:col('maint'),ins:col('ins'),
+      truck:col('truck_pmt'),km:col('km_payback'),profit:col('profit')};
+    needSpace(18);
     doc.setDrawColor(...LINE); doc.line(M, y, PW-M, y); y += 3;
-    doc.setFont('helvetica','bold'); doc.setFontSize(7); doc.setTextColor(...NAVY);
+    doc.setFont('helvetica','bold'); doc.setFontSize(7.5);
     const tvals = { 0:mrows.length+' MOVES', 6:Math.round(t.miles).toLocaleString(), 7:money(t.price),
       8:money(t.fuel), 9:money(t.driver), 10:money(t.permit), 11:money(t.toll), 12:money(t.pilot),
-      13:money(t.maint), 14:money(t.ins) };
-    cols.forEach((c,i)=>{ if(tvals[i]!==undefined) doc.text(String(tvals[i]), c[3]==='r'?c[1]+c[2]:c[1], y+8, {align:c[3]==='r'?'right':'left'}); });
-    y += 12;
-    // Profit line for the month (its own row, right-aligned, colored)
-    doc.setTextColor(...(t.profit>=0?GREEN:RED));
-    doc.text('Month Profit: '+money(t.profit), PW-M, y+8, {align:'right'});
+      13:money(t.maint), 14:money(t.ins), 15:money(t.truck), 16:money(t.km), 17:money(t.profit) };
+    cols.forEach((c,i)=>{
+      if(tvals[i]===undefined) return;
+      if (i===17) doc.setTextColor(...(t.profit<0?RED:GREEN)); else doc.setTextColor(...NAVY);
+      doc.text(String(tvals[i]), c[3]==='r'?c[1]+c[2]-2:c[1]+2, y+8, {align:c[3]==='r'?'right':'left'});
+    });
     doc.setTextColor(30,30,28);
     y += 20;
   });
 
   // Grand total summary
-  needSpace(40, null);
+  curMonthKey=null;
+  needSpace(44);
   const gp=rows.reduce((s,r)=>s+(num(r.price)||0),0);
   const gpr=rows.reduce((s,r)=>s+(num(r.profit)||0),0);
   const gm=rows.reduce((s,r)=>s+(num(r.miles)||0),0);
-  doc.setFillColor(245,245,242); doc.rect(M, y, PW-2*M, 26, 'F');
-  doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(...NAVY);
+  doc.setFillColor(245,245,242); doc.rect(M, y, AW, 26, 'F');
+  doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(...NAVY);
   doc.text(`TOTALS (${rows.length} moves)`, M+8, y+17);
-  doc.text('Revenue '+money(gp)+'    Miles '+Math.round(gm).toLocaleString(), M+180, y+17);
+  doc.text('Revenue '+money(gp)+'      Miles '+Math.round(gm).toLocaleString(), M+220, y+17);
   doc.setTextColor(...(gpr>=0?GREEN:RED));
   doc.text('Net Profit '+money(gpr), PW-M-8, y+17, {align:'right'});
 
-  // KM balance footnote
-  y += 40; needSpace(16,null);
+  y += 40; needSpace(16);
   doc.setFont('helvetica','normal'); doc.setFontSize(8); doc.setTextColor(...GRAY);
   doc.text('KM Payback Balance (current): '+money(currentPaybackBalance()), M, y+8);
 
