@@ -1,4 +1,4 @@
-<!-- KMT Employee Portal v3.1 -->
+<!-- KMT Employee Portal v3.3 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -704,6 +704,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <div class="btn-row" style="flex-wrap:wrap;gap:8px">
       <button class="btn primary" onclick="showTab('rates')">💲 Rates &amp; Pricing</button>
       <button class="btn primary" onclick="showTab('reports')">📊 Reports &amp; Analytics</button>
+      <button class="btn primary" onclick="showTab('breakdown')">📒 Monthly Trip Breakdown</button>
     </div>
   </div>
   <div class="card">
@@ -1195,6 +1196,33 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
   </div>
 </div>
 
+
+<!-- ══ MONTHLY TRIP BREAKDOWN ══ -->
+<div class="section" id="section-breakdown">
+  <div style="margin-bottom:0.75rem"><button class="btn sm" onclick="showTab('admin')">← Back to Admin</button></div>
+
+  <div class="card">
+    <div class="card-title">Monthly Trip Breakdown</div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:0.75rem">Historical months (through June 2026) are the locked ledger imported from the master sheet. July 2026 onward is computed live from completed loads — pre-fill values (fuel, driver pay, permits, tolls, pilot) pull from each load's matching bid, and the percentage allocations come off the gross price.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <select id="bd-year" onchange="renderBreakdown()" style="padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"></select>
+      <button class="btn" onclick="renderBreakdown()">↻ Refresh</button>
+      <button class="btn" onclick="exportBreakdownCSV()">⬇ Export CSV</button>
+    </div>
+  </div>
+
+  <!-- Allocation settings (live/future months) -->
+  <div class="card" id="bd-settings"></div>
+
+  <!-- YTD / range KPIs -->
+  <div id="bd-kpis" class="metrics-grid" style="margin-bottom:1rem"></div>
+
+  <!-- Month blocks render here -->
+  <div id="bd-months"></div>
+
+  <div id="bd-empty" style="display:none" class="empty"><div class="empty-icon">📒</div><p>No trips found for this period.</p></div>
+  <div style="height:1rem"></div>
+</div>
 
 <!-- ══ REPORTS ══ -->
 <div class="section" id="section-reports">
@@ -3958,6 +3986,10 @@ function showTab(name){
     if(!currentSession||currentSession.role!=='admin'){showToast('Reports are admin only');showTab('estimator');return;}
     populateDriverFilter();updateDateRange();updateReportUI();
   }
+  if(name==='breakdown'){
+    if(!currentSession||currentSession.role!=='admin'){showToast('Breakdown is admin only');showTab('estimator');return;}
+    enterBreakdown();
+  }
   if(name==='permits'){ renderPermitsList(); Promise.all([loadOsowRules(), loadOsowLogins()]).then(()=>renderPermitsList()); }
   if(name==='admin')loadAdminData();
   window.scrollTo(0,0);
@@ -4622,6 +4654,414 @@ function exportReportPDF() {
   setTimeout(() => window.print(), 300);
 }
 
+
+function num(v){ if(v===''||v===null||v===undefined) return 0; const n=parseFloat(v); return isNaN(n)?0:n; }
+
+// ══════════════════════════════════════════════
+// MONTHLY TRIP BREAKDOWN  (admin)
+// Historical rows (<= Jun 2026) come from kmt_trip_breakdown (locked ledger).
+// Live months (Jul 2026+) are computed from completed loads:
+//   • pre-fill (fuel, driver, permit, toll, pilot) from the matched bid
+//   • % allocations (maint/ins/truck/km) off gross price
+//   • no bid match  -> flagged for manual entry, editable + saved on the load
+// SMS payback loan is fully repaid, so that category is retired.
+// ══════════════════════════════════════════════
+let breakdownRows = [];      // historical ledger
+let breakdownConfig = null;  // allocation percentages + KM starting balance
+const BREAKDOWN_CUTOVER = '2026-07-01'; // first live month
+
+async function enterBreakdown(){
+  document.getElementById('bd-months').innerHTML = '<div class="loading"><span class="spinner"></span>Loading breakdown…</div>';
+  try {
+    const [rows, cfg] = await Promise.all([
+      sb('kmt_trip_breakdown?select=*&order=trip_date.asc'),
+      sb('kmt_breakdown_config?select=*&id=eq.1')
+    ]);
+    breakdownRows = rows || [];
+    breakdownConfig = (cfg && cfg[0]) || bdDefaultConfig();
+  } catch(e) {
+    document.getElementById('bd-months').innerHTML =
+      '<div class="empty"><p>Could not load breakdown. Has 15_trip_breakdown.sql been run?</p></div>';
+    return;
+  }
+  try {
+    const [freshLoads, freshBids] = await Promise.all([
+      sb('kmt_loads?select=*&order=date.asc'),
+      sb('kmt_bids?select=*')
+    ]);
+    reportData.loads = freshLoads; reportData.bids = freshBids;
+  } catch(e){}
+  buildBreakdownYears();
+  renderBreakdownSettings();
+  renderBreakdown();
+}
+
+function bdDefaultConfig(){
+  return { fuel_per_mile:0.6667, driver_pct:0.25, maint_pct:0.15, ins_pct:0.16,
+           truck_pct:0.09, km_pct:0.15, sms_pct:0.00, km_start_balance:225149.13 };
+}
+
+// ── Live rows: one per completed land load dated on/after the cutover ──
+function liveRowsFromLoads(){
+  const cfg = breakdownConfig || bdDefaultConfig();
+  const loads = (reportData.loads||[]).filter(l =>
+    l.status === 'Completed' && (l.date||'') >= BREAKDOWN_CUTOVER && l.transport_mode !== 'sea');
+  return loads.map(l => {
+    const manual = l.breakdown_manual || null;   // admin-entered overrides
+    const bid = matchBidForLoad(l);
+    const src = manual ? 'manual' : (bid ? 'bid' : 'unmatched');
+
+    // Base figures: manual overrides win, then bid, then the load itself.
+    const price  = pick(manual,'price',  num(l.trip_price) || (bid?num(bid.trip_price):0));
+    const miles  = pick(manual,'miles',  num(l.miles_total) || (bid?num(bid.trip_miles):0));
+    const fuel   = pick(manual,'fuel',   bid&&bid.fuel_cost  !=null ? num(bid.fuel_cost)  : round2(miles*cfg.fuel_per_mile));
+    const driver = pick(manual,'driver_pay', bid&&bid.driver_pay!=null ? num(bid.driver_pay) : round2(price*cfg.driver_pct));
+    const permit = pick(manual,'permit', bid&&bid.permits    !=null ? num(bid.permits)    : 0);
+    const toll   = pick(manual,'toll',   bid&&bid.total_tolls!=null ? num(bid.total_tolls): 0);
+    const pilot  = pick(manual,'pilot',  bid&&bid.pilot_est  !=null ? num(bid.pilot_est)  : 0);
+
+    // Percentage allocations always off gross price.
+    const maint = round2(price*cfg.maint_pct);
+    const ins   = round2(price*cfg.ins_pct);
+    const truck = round2(price*cfg.truck_pct);
+    const km    = round2(price*cfg.km_pct);
+    const profit = round2(price - fuel - driver - permit - toll - pilot - maint - ins - truck - km);
+
+    return {
+      load_id: l.id,
+      trip_date: l.date, customer: l.customer||'', driver: l.driver||'',
+      boat: [l.make,l.model].filter(Boolean).join(' ')||l.boatname||'',
+      pickup: l.pickup_name||l.pickup_city||'', drop_loc: l.delivery_name||l.delivery_city||'',
+      miles, price, fuel, driver_pay:driver, permit, toll, pilot,
+      maint, ins, truck_pmt:truck, km_payback:km, profit,
+      is_historical:false, _src:src
+    };
+  });
+}
+
+// manual override value if present, else fallback
+function pick(manual, key, fallback){
+  if (manual && manual[key] !== undefined && manual[key] !== null && manual[key] !== '') return num(manual[key]);
+  return fallback;
+}
+
+// Best-effort load→bid link: same customer, nearest date (loads store no bid_id).
+function matchBidForLoad(l){
+  const cust = (l.customer||'').trim().toLowerCase();
+  if (!cust) return null;
+  const cands = (reportData.bids||[]).filter(b => (b.customer||'').trim().toLowerCase() === cust);
+  if (!cands.length) return null;
+  const ld = new Date(l.date||l.created_at||Date.now()).getTime();
+  cands.sort((a,b) => Math.abs(new Date(a.bid_date||0)-ld) - Math.abs(new Date(b.bid_date||0)-ld));
+  return cands[0];
+}
+
+function allBreakdownRows(){ return breakdownRows.concat(liveRowsFromLoads()); }
+
+function buildBreakdownYears(){
+  const sel = document.getElementById('bd-year');
+  if (!sel) return;
+  const years = new Set(allBreakdownRows().map(r => (r.trip_date||'').slice(0,4)).filter(Boolean));
+  const list = [...years].sort().reverse();
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">All Time</option>' +
+    list.map(y => `<option value="${y}">${y}</option>`).join('');
+  sel.value = cur || (list[0] || 'all');
+}
+
+function renderBreakdown(){
+  const yearSel = (document.getElementById('bd-year')||{}).value || 'all';
+  let rows = allBreakdownRows();
+  if (yearSel !== 'all') rows = rows.filter(r => (r.trip_date||'').slice(0,4) === yearSel);
+  rows.sort((a,b) => (a.trip_date||'') < (b.trip_date||'') ? -1 : 1);
+
+  const monthsEl = document.getElementById('bd-months');
+  const emptyEl = document.getElementById('bd-empty');
+  if (!rows.length){ monthsEl.innerHTML=''; emptyEl.style.display=''; document.getElementById('bd-kpis').innerHTML=''; return; }
+  emptyEl.style.display='none';
+
+  const groups = {};
+  rows.forEach(r => { const k=(r.trip_date||'').slice(0,7); (groups[k]=groups[k]||[]).push(r); });
+  const monthKeys = Object.keys(groups).sort();
+  const paybackByMonth = computePaybackBalances();
+
+  const sum = (f) => rows.reduce((s,r)=>s+(num(r[f])||0),0);
+  const tPrice=sum('price'), tProfit=sum('profit'), tMiles=sum('miles');
+  const needsEntry = rows.filter(r => r._src === 'unmatched').length;
+  document.getElementById('bd-kpis').innerHTML = `
+    <div class="metric highlight"><div class="m-label">Trips${yearSel!=='all'?' ('+yearSel+')':''}</div><div class="m-value">${rows.length}</div></div>
+    <div class="metric highlight"><div class="m-label">Gross Revenue</div><div class="m-value">${fmt(tPrice)}</div></div>
+    <div class="metric"><div class="m-label">Net Profit</div><div class="m-value ${tProfit>=0?'pos':'neg'}">${tProfit<0?'−':''}${fmt(Math.abs(tProfit))}</div></div>
+    <div class="metric"><div class="m-label">Total Miles</div><div class="m-value">${Math.round(tMiles).toLocaleString()}</div></div>
+    <div class="metric"><div class="m-label">KM Balance</div><div class="m-value">${fmt(currentPaybackBalance())}</div></div>
+    ${needsEntry?`<div class="metric"><div class="m-label" style="color:var(--amber)">Need Manual Entry</div><div class="m-value" style="color:var(--amber)">${needsEntry}</div></div>`:''}`;
+
+  monthsEl.innerHTML = monthKeys.map(mk => renderMonthBlock(mk, groups[mk], paybackByMonth[mk])).join('');
+}
+
+// Running KM balance per month (SMS retired).
+function computePaybackBalances(){
+  const cfg = breakdownConfig || bdDefaultConfig();
+  const all = allBreakdownRows().slice().sort((a,b)=>(a.trip_date||'')<(b.trip_date||'')?-1:1);
+  const byMonth={};
+  all.forEach(r=>{ const k=(r.trip_date||'').slice(0,7); (byMonth[k]=byMonth[k]||[]).push(r); });
+  const keys=Object.keys(byMonth).sort();
+  let km=num(cfg.km_start_balance);
+  const out={};
+  keys.forEach(k=>{
+    const kmPaid=byMonth[k].reduce((s,r)=>s+(num(r.km_payback)||0),0);
+    const openKm=km;
+    km=round2(km-kmPaid);
+    out[k]={ openKm, closeKm:km, kmPaid:round2(kmPaid) };
+  });
+  return out;
+}
+function currentPaybackBalance(){
+  const pb=computePaybackBalances();
+  const keys=Object.keys(pb).sort();
+  if(!keys.length){ const c=breakdownConfig||bdDefaultConfig(); return num(c.km_start_balance); }
+  return pb[keys[keys.length-1]].closeKm;
+}
+
+function renderMonthBlock(monthKey, rows, pb){
+  const [y,m]=monthKey.split('-');
+  const monthName=new Date(y, parseInt(m)-1, 1).toLocaleString('en-US',{month:'long',year:'numeric'});
+  const isLive = monthKey >= BREAKDOWN_CUTOVER.slice(0,7);
+  const col=(f)=>rows.reduce((s,r)=>s+(num(r[f])||0),0);
+  const t={miles:col('miles'),price:col('price'),fuel:col('fuel'),driver:col('driver_pay'),
+    permit:col('permit'),toll:col('toll'),pilot:col('pilot'),maint:col('maint'),ins:col('ins'),
+    truck:col('truck_pmt'),km:col('km_payback'),profit:col('profit')};
+
+  const body = rows.map(r=>{
+    const pc=(num(r.profit)||0)>=0?'color:var(--green)':'color:var(--red)';
+    let tag='', action='';
+    if(!r.is_historical){
+      if(r._src==='bid')      tag='<span class="badge blue" style="font-size:9px;padding:1px 5px">BID</span> ';
+      else if(r._src==='manual') tag='<span class="badge green" style="font-size:9px;padding:1px 5px">MANUAL</span> ';
+      else                    tag='<span class="badge amber" style="font-size:9px;padding:1px 5px">NO BID</span> ';
+      if(r._src!=='bid' || true) action=`<button class="btn sm" onclick="editBreakdownMove(${r.load_id})" style="font-size:10px;padding:2px 7px">✎</button>`;
+    }
+    return `<tr${r._src==='unmatched'?' style="background:var(--amber-bg,#fff8e6)"':''}>
+      <td style="white-space:nowrap">${tag}${r.trip_date||'—'}</td>
+      <td>${r.customer||'—'}</td>
+      <td style="font-size:12px">${r.driver||'—'}</td>
+      <td style="font-size:12px">${r.boat||'—'}</td>
+      <td style="font-size:11px">${r.pickup||'?'}</td>
+      <td style="font-size:11px">${r.drop_loc||'?'}</td>
+      <td style="text-align:right">${r.miles!=null?Math.round(num(r.miles)).toLocaleString():'—'}</td>
+      <td style="text-align:right">${fmt(num(r.price))}</td>
+      <td style="text-align:right">${fmt(num(r.fuel))}</td>
+      <td style="text-align:right">${fmt(num(r.driver_pay))}</td>
+      <td style="text-align:right">${fmt(num(r.permit))}</td>
+      <td style="text-align:right">${fmt(num(r.toll))}</td>
+      <td style="text-align:right">${fmt(num(r.pilot))}</td>
+      <td style="text-align:right">${fmt(num(r.maint))}</td>
+      <td style="text-align:right">${fmt(num(r.ins))}</td>
+      <td style="text-align:right">${fmt(num(r.truck_pmt))}</td>
+      <td style="text-align:right">${fmt(num(r.km_payback))}</td>
+      <td style="text-align:right;${pc};font-weight:600">${(num(r.profit)||0)<0?'−':''}${fmt(Math.abs(num(r.profit)))}</td>
+      <td style="text-align:center">${action}</td>
+    </tr>`;
+  }).join('');
+
+  const pbLine = pb ? `<div style="font-size:11px;color:var(--text-muted);margin-top:6px">
+      KM Payback Balance: ${fmt(pb.openKm)} → <strong>${fmt(pb.closeKm)}</strong> &nbsp;(paid ${fmt(pb.kmPaid)} this month)</div>` : '';
+
+  return `<div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:0.5rem">
+      <div class="card-title" style="margin-bottom:0">${monthName}
+        ${isLive?'<span class="badge blue" style="margin-left:6px">LIVE</span>':'<span class="badge gray" style="margin-left:6px">HISTORICAL</span>'}</div>
+      <div style="font-size:12px;color:var(--text-muted)">${rows.length} moves</div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="rate-table" style="min-width:1400px;font-size:12px">
+        <thead><tr>
+          <th>Date</th><th>Customer</th><th>Driver</th><th>Boat</th><th>Pickup</th><th>Drop</th>
+          <th style="text-align:right">Miles</th><th style="text-align:right">Price</th>
+          <th style="text-align:right">Fuel</th><th style="text-align:right">Driver</th>
+          <th style="text-align:right">Permit</th><th style="text-align:right">Toll</th><th style="text-align:right">Pilot</th>
+          <th style="text-align:right">Maint</th><th style="text-align:right">Ins</th><th style="text-align:right">Truck</th>
+          <th style="text-align:right">KM</th><th style="text-align:right">Profit</th><th></th>
+        </tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot style="font-weight:700;background:var(--gray-50)"><tr>
+          <td colspan="6">${rows.length} MOVES</td>
+          <td style="text-align:right">${Math.round(t.miles).toLocaleString()}</td>
+          <td style="text-align:right">${fmt(t.price)}</td>
+          <td style="text-align:right">${fmt(t.fuel)}</td>
+          <td style="text-align:right">${fmt(t.driver)}</td>
+          <td style="text-align:right">${fmt(t.permit)}</td>
+          <td style="text-align:right">${fmt(t.toll)}</td>
+          <td style="text-align:right">${fmt(t.pilot)}</td>
+          <td style="text-align:right">${fmt(t.maint)}</td>
+          <td style="text-align:right">${fmt(t.ins)}</td>
+          <td style="text-align:right">${fmt(t.truck)}</td>
+          <td style="text-align:right">${fmt(t.km)}</td>
+          <td style="text-align:right;${t.profit>=0?'color:var(--green)':'color:var(--red)'}">${t.profit<0?'−':''}${fmt(Math.abs(t.profit))}</td>
+          <td></td>
+        </tr></tfoot>
+      </table>
+    </div>
+    ${pbLine}
+    ${isLive?'<div style="font-size:11px;color:var(--text-muted);margin-top:6px"><span class="badge blue" style="font-size:9px;padding:1px 5px">BID</span> from matched bid &nbsp; <span class="badge green" style="font-size:9px;padding:1px 5px">MANUAL</span> hand-entered &nbsp; <span class="badge amber" style="font-size:9px;padding:1px 5px">NO BID</span> needs entry — tap ✎ &nbsp; % allocations always computed from price</div>':''}
+  </div>`;
+}
+
+// ── Manual entry for a live move (writes to the load's breakdown_manual JSONB) ──
+function editBreakdownMove(loadId){
+  const l = (reportData.loads||[]).find(x => x.id == loadId);
+  if (!l){ showToast('Load not found'); return; }
+  const cfg = breakdownConfig || bdDefaultConfig();
+  const m = l.breakdown_manual || {};
+  const bid = matchBidForLoad(l);
+  // Seed each field from manual > bid > derived
+  const seed = {
+    price:  pick(m,'price',  num(l.trip_price)|| (bid?num(bid.trip_price):0)),
+    miles:  pick(m,'miles',  num(l.miles_total)||(bid?num(bid.trip_miles):0)),
+    fuel:   pick(m,'fuel',   bid&&bid.fuel_cost!=null?num(bid.fuel_cost):0),
+    driver_pay: pick(m,'driver_pay', bid&&bid.driver_pay!=null?num(bid.driver_pay):0),
+    permit: pick(m,'permit', bid&&bid.permits!=null?num(bid.permits):0),
+    toll:   pick(m,'toll',   bid&&bid.total_tolls!=null?num(bid.total_tolls):0),
+    pilot:  pick(m,'pilot',  bid&&bid.pilot_est!=null?num(bid.pilot_est):0)
+  };
+  const title = [l.date, l.customer].filter(Boolean).join(' · ') || 'Move';
+  const isManual = !!l.breakdown_manual;
+  const html = `<div class="overlay" onclick="if(event.target===this)this.remove()">
+    <div class="modal" style="max-width:460px">
+      <div class="modal-header"><div class="modal-title">Manual Entry — ${title}</div>
+        <button class="modal-close" onclick="this.closest('.overlay').remove()">✕</button></div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">${bid?'A bid was matched, but you can override its pre-fill values here.':'No bid could be matched to this move. Enter the actuals below.'} Maintenance, Insurance, Truck Payment and KM Payback are always computed from Price.</p>
+      <div class="form-grid">
+        <div class="field"><label>Price ($)</label><input type="number" step="0.01" id="mv-price" value="${seed.price}" oninput="previewMoveAlloc()"></div>
+        <div class="field"><label>Total Miles</label><input type="number" step="0.1" id="mv-miles" value="${seed.miles}"></div>
+        <div class="field"><label>Fuel ($)</label><input type="number" step="0.01" id="mv-fuel" value="${seed.fuel}"></div>
+        <div class="field"><label>Driver Pay ($)</label><input type="number" step="0.01" id="mv-driver_pay" value="${seed.driver_pay}"></div>
+        <div class="field"><label>Permit ($)</label><input type="number" step="0.01" id="mv-permit" value="${seed.permit}"></div>
+        <div class="field"><label>Toll ($)</label><input type="number" step="0.01" id="mv-toll" value="${seed.toll}"></div>
+        <div class="field"><label>Pilot Car ($)</label><input type="number" step="0.01" id="mv-pilot" value="${seed.pilot}"></div>
+      </div>
+      <div id="mv-preview" style="font-size:12px;color:var(--text-muted);margin-top:0.75rem;padding:0.5rem 0.75rem;background:var(--gray-50);border-radius:var(--radius)"></div>
+      <div class="btn-row" style="margin-top:1rem">
+        <button class="btn primary" onclick="saveBreakdownMove(${loadId})">Save Entry</button>
+        ${isManual?`<button class="btn danger" onclick="clearBreakdownMove(${loadId})">Clear Manual</button>`:''}
+        <button class="btn" onclick="this.closest('.overlay').remove()">Cancel</button>
+      </div>
+    </div></div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+  previewMoveAlloc();
+}
+
+function previewMoveAlloc(){
+  const cfg = breakdownConfig || bdDefaultConfig();
+  const g=(id)=>num((document.getElementById(id)||{}).value);
+  const price=g('mv-price');
+  const maint=round2(price*cfg.maint_pct), ins=round2(price*cfg.ins_pct),
+        truck=round2(price*cfg.truck_pct), km=round2(price*cfg.km_pct);
+  const profit=round2(price - g('mv-fuel') - g('mv-driver_pay') - g('mv-permit') - g('mv-toll') - g('mv-pilot') - maint - ins - truck - km);
+  const el=document.getElementById('mv-preview');
+  if(el) el.innerHTML=`Computed → Maint ${fmt(maint)} · Ins ${fmt(ins)} · Truck ${fmt(truck)} · KM ${fmt(km)} &nbsp;|&nbsp; <strong style="color:${profit>=0?'var(--green)':'var(--red)'}">Profit ${profit<0?'−':''}${fmt(Math.abs(profit))}</strong>`;
+}
+
+async function saveBreakdownMove(loadId){
+  const g=(id)=>{ const v=(document.getElementById(id)||{}).value; return v===''?null:num(v); };
+  const manual={ price:g('mv-price'), miles:g('mv-miles'), fuel:g('mv-fuel'),
+    driver_pay:g('mv-driver_pay'), permit:g('mv-permit'), toll:g('mv-toll'), pilot:g('mv-pilot') };
+  try {
+    await sb('kmt_loads?id=eq.'+loadId,'PATCH',{ breakdown_manual: manual });
+    const l=(reportData.loads||[]).find(x=>x.id==loadId); if(l) l.breakdown_manual=manual;
+    document.querySelector('.overlay')?.remove();
+    renderBreakdown();
+    showToast('Manual entry saved ✓');
+  } catch(e){
+    const msg=(e&&e.message)?e.message:String(e);
+    alert('Manual entry save error:\n\n'+msg+'\n\nIf this mentions a missing column, run 16_breakdown_manual.sql.');
+  }
+}
+
+async function clearBreakdownMove(loadId){
+  if(!confirm('Clear the manual entry and go back to bid/derived values?')) return;
+  try {
+    await sb('kmt_loads?id=eq.'+loadId,'PATCH',{ breakdown_manual: null });
+    const l=(reportData.loads||[]).find(x=>x.id==loadId); if(l) l.breakdown_manual=null;
+    document.querySelector('.overlay')?.remove();
+    renderBreakdown();
+    showToast('Manual entry cleared');
+  } catch(e){ showToast('Clear failed'); }
+}
+
+// ── Inline allocation settings area (applies to live/future months) ──
+function renderBreakdownSettings(){
+  const host=document.getElementById('bd-settings');
+  if(!host) return;
+  const c=breakdownConfig||bdDefaultConfig();
+  const pct=(v)=>+( ( (num(v)||0)*100 ).toFixed(2) );
+  host.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="toggleBdSettings()">
+      <div class="card-title" style="margin-bottom:0">⚙ Allocation Settings <span style="font-weight:400;font-size:12px;color:var(--text-muted)">— applied to July 2026 onward</span></div>
+      <span id="bd-settings-caret" style="color:var(--text-muted)">▸</span>
+    </div>
+    <div id="bd-settings-body" style="display:none;margin-top:0.875rem">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.875rem">These drive live-month math only. Historical months stay locked. Percentages are of gross trip price; fuel is gallons per mile.</p>
+      <div class="form-grid">
+        <div class="field"><label>Fuel (gal/mi)</label><input type="number" step="0.0001" id="cfg-fuel" value="${num(c.fuel_per_mile)}"></div>
+        <div class="field"><label>Driver Pay %</label><input type="number" step="0.1" id="cfg-driver" value="${pct(c.driver_pct)}"></div>
+        <div class="field"><label>Maintenance %</label><input type="number" step="0.1" id="cfg-maint" value="${pct(c.maint_pct)}"></div>
+        <div class="field"><label>Insurance %</label><input type="number" step="0.1" id="cfg-ins" value="${pct(c.ins_pct)}"></div>
+        <div class="field"><label>Truck Payment %</label><input type="number" step="0.1" id="cfg-truck" value="${pct(c.truck_pct)}"></div>
+        <div class="field"><label>KM Payback %</label><input type="number" step="0.1" id="cfg-km" value="${pct(c.km_pct)}"></div>
+        <div class="field"><label>KM Loan Balance ($)</label><input type="number" step="0.01" id="cfg-kmbal" value="${num(c.km_start_balance)}"></div>
+      </div>
+      <div class="btn-row" style="margin-top:0.875rem">
+        <button class="btn primary" onclick="saveBreakdownConfig()">Save Settings</button>
+        <button class="btn" onclick="toggleBdSettings()">Close</button>
+      </div>
+    </div>`;
+}
+function toggleBdSettings(){
+  const b=document.getElementById('bd-settings-body');
+  const c=document.getElementById('bd-settings-caret');
+  if(!b) return;
+  const open=b.style.display!=='none';
+  b.style.display=open?'none':'';
+  if(c) c.textContent=open?'▸':'▾';
+}
+
+async function saveBreakdownConfig(){
+  const g=(id)=>parseFloat(document.getElementById(id).value)||0;
+  const patch={
+    fuel_per_mile:g('cfg-fuel'),
+    driver_pct:g('cfg-driver')/100, maint_pct:g('cfg-maint')/100, ins_pct:g('cfg-ins')/100,
+    truck_pct:g('cfg-truck')/100, km_pct:g('cfg-km')/100,
+    km_start_balance:g('cfg-kmbal')
+  };
+  try {
+    await sb('kmt_breakdown_config?id=eq.1','PATCH',patch);
+    breakdownConfig=Object.assign(breakdownConfig||bdDefaultConfig(),patch);
+    renderBreakdown();
+    showToast('Allocation settings saved ✓');
+  } catch(e){ showToast('Save failed: '+((e.message||e)+'').slice(0,60)); }
+}
+
+function exportBreakdownCSV(){
+  const yearSel=(document.getElementById('bd-year')||{}).value||'all';
+  let rows=allBreakdownRows();
+  if(yearSel!=='all') rows=rows.filter(r=>(r.trip_date||'').slice(0,4)===yearSel);
+  rows.sort((a,b)=>(a.trip_date||'')<(b.trip_date||'')?-1:1);
+  const hdr=['Date','Customer','Driver','Boat','Pickup','Drop','Miles','Price','Fuel','Driver Pay','Permit','Toll','Pilot','Maintenance','Insurance','Truck Payment','KM Payback','Profit','Source'];
+  const lines=rows.map(r=>[
+    r.trip_date,r.customer,r.driver,r.boat,r.pickup,r.drop_loc,
+    r.miles,r.price,r.fuel,r.driver_pay,r.permit,r.toll,r.pilot,r.maint,r.ins,r.truck_pmt,r.km_payback,r.profit,
+    r.is_historical?'Historical':(r._src==='bid'?'Live (bid)':(r._src==='manual'?'Live (manual)':'Live (no bid)'))
+  ].map(v=>`"${v==null?'':v}"`).join(','));
+  const csv=[hdr.join(','),...lines].join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='KMT_Trip_Breakdown_'+(yearSel==='all'?'AllTime':yearSel)+'.csv';
+  a.click();
+  showToast('Breakdown CSV exported ✓');
+}
+
+function round2(n){ return Math.round((num(n)||0)*100)/100; }
 
 // ══════════════════════════════════════════════
 // EQUIPMENT
