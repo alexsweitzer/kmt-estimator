@@ -1,4 +1,4 @@
-<!-- KMT Employee Portal v3.7 -->
+<!-- KMT Employee Portal v3.9 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -853,6 +853,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="form-grid">
         <div class="field"><label>Start Date</label><input type="date" id="ld-date"></div>
         <div class="field"><label>End Date <span style="font-weight:400;color:var(--text-muted)">(multi-day trips)</span></label><input type="date" id="ld-date-end"></div>
+        <div class="field"><label>Start Time <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label><input type="time" id="ld-time-start"></div>
+        <div class="field"><label>End Time <span style="font-weight:400;color:var(--text-muted)">(optional)</span></label><input type="time" id="ld-time-end"></div>
         <div class="field">
           <label>Transport</label>
           <select id="ld-mode" onchange="onLoadModeChange()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
@@ -1407,6 +1409,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <button class="btn" id="etab-trailers" onclick="showEquipTab('trailers')" style="font-size:12px;padding:6px 14px">🚚 Trailers</button>
     <button class="btn" id="etab-vessels" onclick="showEquipTab('vessels')" style="font-size:12px;padding:6px 14px">⛵ Vessels</button>
     <div style="flex:1"></div>
+    <button class="btn" onclick="exportEquipmentPDF()" style="font-size:12px;padding:6px 14px">⬇ Export PDF</button>
     <button class="btn accent" id="addEquipBtn" onclick="openEquipForm(null)" style="font-size:12px;padding:6px 14px;display:none">+ Add Equipment</button>
   </div>
 
@@ -2631,6 +2634,8 @@ function getLoadFormData() {
   return {
     date: document.getElementById('ld-date').value || null,
     date_end: document.getElementById('ld-date-end') ? (document.getElementById('ld-date-end').value || null) : null,
+    start_time: (document.getElementById('ld-time-start')||{}).value || null,
+    end_time: (document.getElementById('ld-time-end')||{}).value || null,
     transport_mode: (document.getElementById('ld-mode') && document.getElementById('ld-mode').value) || 'land',
     trip_price: num('ld-trip-price'),
     payment_type: txt('ld-payment-type'),
@@ -2844,7 +2849,7 @@ function editLoad(id) {
   showLoadsSubTab('new');
   // Restore all fields
   const sv = (i, v) => { const el = document.getElementById(i); if (el) el.value = v || ''; };
-  sv('ld-date', l.date); sv('ld-date-end', l.date_end); (function(){const m=document.getElementById('ld-mode'); if(m) m.value=l.transport_mode||'land';})(); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
+  sv('ld-date', l.date); sv('ld-date-end', l.date_end); sv('ld-time-start', l.start_time); sv('ld-time-end', l.end_time); (function(){const m=document.getElementById('ld-mode'); if(m) m.value=l.transport_mode||'land';})(); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
   setDriverSelect('ld-driver', l.driver); setDriverSelect('ld-codriver', l.codriver); sv('ld-status', l.status);
   sv('ld-customer', l.customer); sv('ld-contact', l.contact); applyPhoneFormat('ld-contact');
   sv('ld-make', l.make); sv('ld-model', l.model); sv('ld-loa', l.loa); sv('ld-beam', l.beam);
@@ -2925,7 +2930,7 @@ function applyLoadLockState(status) {
 
 function clearLoadForm() {
   loadEditId = null;
-  ['ld-date','ld-date-end','ld-trip-price','ld-payment-type','ld-truck','ld-trailer','ld-driver','ld-codriver','ld-customer','ld-contact','ld-ct-year','ld-ct-make','ld-ct-model','ld-ct-vin','ld-ct-plate','ld-ct-axles',
+  ['ld-date','ld-date-end','ld-time-start','ld-time-end','ld-trip-price','ld-payment-type','ld-truck','ld-trailer','ld-driver','ld-codriver','ld-customer','ld-contact','ld-ct-year','ld-ct-make','ld-ct-model','ld-ct-vin','ld-ct-plate','ld-ct-axles',
    'ld-make','ld-model','ld-loa','ld-beam','ld-color','ld-boatname','ld-weight','ld-height',
    'ld-hullid','ld-regdoc','ld-loadedheight','ld-pickup-name','ld-pickup-street','ld-pickup-city',
    'ld-delivery-name','ld-delivery-street','ld-delivery-city','ld-miles-start','ld-miles-stop',
@@ -3317,7 +3322,7 @@ function viewLockedLoad(id) {
   const l = loads.find(x => x.id == id);
   if (!l) return;
   const sv = (i, v) => { const el = document.getElementById(i); if (el) el.value = v || ''; };
-  sv('ld-date', l.date); sv('ld-date-end', l.date_end); (function(){const m=document.getElementById('ld-mode'); if(m) m.value=l.transport_mode||'land';})(); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
+  sv('ld-date', l.date); sv('ld-date-end', l.date_end); sv('ld-time-start', l.start_time); sv('ld-time-end', l.end_time); (function(){const m=document.getElementById('ld-mode'); if(m) m.value=l.transport_mode||'land';})(); sv('ld-trip-price', l.trip_price); sv('ld-payment-type', l.payment_type); sv('ld-truck', l.truck); sv('ld-trailer', l.trailer);
   setDriverSelect('ld-driver', l.driver); setDriverSelect('ld-codriver', l.codriver); sv('ld-status', l.status);
   sv('ld-customer', l.customer); sv('ld-contact', l.contact); applyPhoneFormat('ld-contact');
   sv('ld-make', l.make); sv('ld-model', l.model); sv('ld-loa', l.loa); sv('ld-beam', l.beam);
@@ -3430,6 +3435,16 @@ function populateCalDriverFilter(){
     drivers.map(d => `<option value="${escAttr(d)}"${d===cur?' selected':''}>${d}</option>`).join('');
 }
 
+// "07:00" -> "7a", "12:30" -> "12:30p", "16:00" -> "4p"
+function fmtClock(t){
+  if (!t || !/^\d\d?:\d\d/.test(t)) return '';
+  const [hRaw, m] = t.split(':');
+  let h = parseInt(hRaw, 10);
+  const ap = h >= 12 ? 'p' : 'a';
+  h = h % 12; if (h === 0) h = 12;
+  return m === '00' ? (h + ap) : (h + ':' + m + ap);
+}
+
 function renderCalendar(){
   const grid = document.getElementById('calGrid');
   const title = document.getElementById('calTitle');
@@ -3458,6 +3473,16 @@ function renderCalendar(){
       cur.setDate(cur.getDate() + 1);
       guard++;
     }
+  });
+
+  // Sort each day's loads: timed loads first in chronological order, untimed after.
+  const timeKey = l => (l.start_time && /^\d\d?:\d\d/.test(l.start_time)) ? l.start_time : '99:99';
+  Object.keys(byDate).forEach(k => {
+    byDate[k].sort((a,b) => {
+      const ta = timeKey(a), tb = timeKey(b);
+      if (ta !== tb) return ta < tb ? -1 : 1;
+      return (a.customer||'').localeCompare(b.customer||'');
+    });
   });
 
   // Legend: drivers actually appearing this month
@@ -3505,8 +3530,10 @@ function renderCalendar(){
           const icon = l.transport_mode === 'sea' ? '⛵' : '🚚';
           const multi = l.date_end && l.date_end > l.date;
           const isStart = key === l.date;
-          const label = icon + ' ' + [l.customer || 'Load', drv ? ('· ' + drv.split(' ')[0]) : ''].filter(Boolean).join(' ') + (multi && !isStart ? ' ↔' : '');
-          const dateBit = multi ? (l.date + ' → ' + l.date_end) : l.date;
+          const tstr = (!multi && l.start_time) ? fmtClock(l.start_time) : '';
+          const label = (tstr ? tstr + ' ' : '') + icon + ' ' + [l.customer || 'Load', drv ? ('· ' + drv.split(' ')[0]) : ''].filter(Boolean).join(' ') + (multi && !isStart ? ' ↔' : '');
+          const timeRange = (l.start_time || l.end_time) ? ((l.start_time?fmtClock(l.start_time):'?') + (l.end_time?('–'+fmtClock(l.end_time)):'')) : '';
+          const dateBit = multi ? (l.date + ' → ' + l.date_end) : (l.date + (timeRange?(' '+timeRange):''));
           const tip = [l.customer, drv || 'Unassigned', l.status, dateBit, (l.pickup_city||'?') + ' → ' + (l.delivery_city||'?')].filter(Boolean).join(' | ');
           return `<div class="cal-ev" style="background:${c}${multi && !isStart ? ';opacity:.75' : ''}" title="${escAttr(tip)}" onclick="openCalLoad('${l.id}')">${label}</div>`;
         }).join('')
@@ -3541,6 +3568,8 @@ function openCalDay(key){
     return key >= l.date && key <= end;
   });
   if (!items.length) return;
+  const dayTimeKey = l => (l.start_time && /^\d\d?:\d\d/.test(l.start_time)) ? l.start_time : '99:99';
+  items.sort((a,b) => { const ta=dayTimeKey(a), tb=dayTimeKey(b); return ta!==tb ? (ta<tb?-1:1) : (a.customer||'').localeCompare(b.customer||''); });
   const pretty = new Date(key + 'T00:00:00').toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
   const ov = document.createElement('div');
   ov.className = 'overlay';
@@ -3558,12 +3587,13 @@ function openCalDay(key){
         const bc = (typeof loadStatusBadge !== 'undefined' && loadStatusBadge[l.status]) || 'gray';
         const icon = l.transport_mode === 'sea' ? '⛵' : '🚚';
         const rangeBit = (l.date_end && l.date_end > l.date) ? (l.date + ' → ' + l.date_end + ' · ') : '';
+        const timeBit = (!(l.date_end && l.date_end > l.date) && (l.start_time || l.end_time)) ? ((l.start_time?fmtClock(l.start_time):'?') + (l.end_time?('–'+fmtClock(l.end_time)):'') + ' · ') : '';
         return `<div class="bid-card" style="cursor:pointer;margin:0" onclick="this.closest('.overlay').remove();document.body.style.overflow='';openCalLoad('${l.id}')">
           <div style="display:flex;align-items:center;gap:8px">
             <span class="cal-dot" style="background:${c};width:11px;height:11px"></span>
             <div style="flex:1;min-width:0">
               <div class="bid-card-name">${icon} ${l.customer || 'No customer'}</div>
-              <div class="bid-card-sub">${rangeBit}${drv || 'Unassigned'} · ${(l.pickup_city||'?')} → ${(l.delivery_city||'?')}</div>
+              <div class="bid-card-sub">${rangeBit}${timeBit}${drv || 'Unassigned'} · ${(l.pickup_city||'?')} → ${(l.delivery_city||'?')}</div>
             </div>
             <span class="badge ${bc}">${l.status || '—'}</span>
           </div>
@@ -5400,6 +5430,142 @@ function renderEquipList() {
       </div>
     </div>`;
   }).join('');
+}
+
+// ── Full equipment spec-sheet PDF (all trucks, trailers, vessels) ──
+function exportEquipmentPDF(){
+  if (!window.jspdf || !window.jspdf.jsPDF) { showToast('PDF library still loading — try again'); return; }
+  if (!equipment || !equipment.length) { showToast('No equipment to export'); return; }
+  showToast('Building PDF…');
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter' });           // portrait
+  const PW = 612, PH = 792, M = 36;
+  const NAVY=[26,39,68], GRAY=[92,91,86], LINE=[221,221,216], LIGHT=[245,245,242];
+  let y = M;
+
+  const nf = (v,u='') => (v===0||v)?Number(v).toLocaleString()+(u?' '+u:''):'—';
+  const inFt = (v) => v ? inToFt(v)+' ('+v+'")' : '—';
+
+  function header(){
+    doc.setFillColor(...NAVY); doc.rect(0,0,PW,58,'F');
+    if (window.__kmtLogoData){ try{ doc.addImage(window.__kmtLogoData,'PNG',M,12,34,34);}catch(e){} }
+    doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(15);
+    doc.text('Kentmorr Marine Transport', M+44, 28);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(200,208,220);
+    doc.text('Equipment Specifications', M+44, 44);
+    doc.setFontSize(8);
+    doc.text('Generated '+new Date().toLocaleDateString(), PW-M, 34, {align:'right'});
+    y = 74;
+  }
+  function need(h){ if (y+h > PH-M){ doc.addPage(); header(); } }
+  function sectionTitle(txt, count){
+    need(30);
+    doc.setFont('helvetica','bold'); doc.setFontSize(13); doc.setTextColor(...NAVY);
+    doc.text(txt+'  ('+count+')', M, y+4);
+    y += 10; doc.setDrawColor(...NAVY); doc.setLineWidth(1.2); doc.line(M, y, PW-M, y); doc.setLineWidth(1);
+    y += 14;
+  }
+
+  function specCard(e, rowsL, rowsR){
+    const pairs = Math.max(rowsL.length, rowsR.length);
+    const cardH = 40 + pairs*14 + 6;
+    need(cardH);
+    const top = y;
+    doc.setDrawColor(...LINE); doc.roundedRect(M, top, PW-2*M, cardH, 4, 4);
+    doc.setFillColor(...LIGHT); doc.rect(M+0.6, top+0.6, PW-2*M-1.2, 26, 'F');
+    doc.setFont('helvetica','bold'); doc.setFontSize(11); doc.setTextColor(...NAVY);
+    doc.text((e.name||'—'), M+10, top+17);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(...GRAY);
+    const sub = 'Unit #'+(e.unit||'—')+'   ·   '+[e.year,e.make,e.style].filter(Boolean).join(' ');
+    doc.text(sub, PW-M-10, top+17, {align:'right'});
+    let ry = top+40;
+    const colLx = M+12, colLv = M+130, colRx = M+(PW-2*M)/2+12, colRv = PW-M-12;
+    doc.setFontSize(8.5);
+    for (let i=0;i<pairs;i++){
+      if (rowsL[i]){
+        doc.setFont('helvetica','normal'); doc.setTextColor(...GRAY);
+        doc.text(rowsL[i][0], colLx, ry);
+        doc.setFont('helvetica','bold'); doc.setTextColor(30,30,28);
+        doc.text(String(rowsL[i][1]), colLv, ry);
+      }
+      if (rowsR[i]){
+        doc.setFont('helvetica','normal'); doc.setTextColor(...GRAY);
+        doc.text(rowsR[i][0], colRx, ry);
+        doc.setFont('helvetica','bold'); doc.setTextColor(30,30,28);
+        doc.text(String(rowsR[i][1]), colRv, ry, {align:'right'});
+      }
+      ry += 14;
+    }
+    y = top + cardH + 8;
+  }
+
+  function truckRows(e){
+    const L = [
+      ['VIN', e.vin||'—'], ['License', (e.plate||'—')+' '+(e.plate_state||'')],
+      ['GVWR', nf(e.gvwr,'lbs')], ['Curb Weight', nf(e.curb_weight,'lbs')],
+      ['Max Load', nf(e.max_load,'lbs')], ['Axles', e.axles||'—']
+    ];
+    const R = [ ['GAWR Axle 1', nf(e.gawr1,'lbs')], ['GAWR Axle 2', nf(e.gawr2,'lbs')] ];
+    if (e.gawr3) R.push(['GAWR Axle 3', nf(e.gawr3,'lbs')]);
+    if (e.gawr4) R.push(['GAWR Axle 4', nf(e.gawr4,'lbs')]);
+    R.push(['Length', inFt(e.length_in)]);
+    R.push(['Width', inFt(e.width_in)]);
+    R.push(['Tires', (e.tire_size||'—')+(e.tire_rating?' / '+e.tire_rating:'')+(e.tire_psi?' @ '+e.tire_psi+' PSI':'')]);
+    return [L,R];
+  }
+  function trailerRows(e){
+    const L = [
+      ['VIN', e.vin||'—'], ['License', (e.plate||'—')+' '+(e.plate_state||'')],
+      ['GVWR', nf(e.gvwr,'lbs')], ['Curb Weight', nf(e.curb_weight,'lbs')],
+      ['Max Load', nf(e.max_load,'lbs')], ['Axles', e.axles||'—'],
+      ['Tires', (e.tire_size||'—')+(e.tire_psi?' @ '+e.tire_psi+' PSI':'')]
+    ];
+    const R = [ ['GAWR Axle 1', nf(e.gawr1,'lbs')], ['GAWR Axle 2', nf(e.gawr2,'lbs')] ];
+    if (e.gawr3) R.push(['GAWR Axle 3', nf(e.gawr3,'lbs')]);
+    if (e.gawr4) R.push(['GAWR Axle 4', nf(e.gawr4,'lbs')]);
+    R.push(['Length', inFt(e.length_in)]);
+    R.push(['Width', inFt(e.width_in)]);
+    const spc = [];
+    if (e.tongue_axle1) spc.push('Tongue→A1 '+e.tongue_axle1+'"');
+    if (e.axle1_axle2) spc.push('A1→A2 '+e.axle1_axle2+'"');
+    if (e.axle2_axle3) spc.push('A2→A3 '+e.axle2_axle3+'"');
+    if (e.axle3_axle4) spc.push('A3→A4 '+e.axle3_axle4+'"');
+    if (spc.length) R.push(['Axle Spacing', spc.join(' · ')]);
+    return [L,R];
+  }
+  function vesselRows(e){
+    const L = [
+      ['HIN', e.vin||'—'], ['Reg / Doc #', (e.plate||'—')+' '+(e.plate_state||'')],
+      ['Dry Weight', nf(e.curb_weight,'lbs')], ['Capacity', nf(e.max_load,'lbs')]
+    ];
+    const R = [ ['LOA', inFt(e.length_in)], ['Beam', inFt(e.width_in)] ];
+    return [L,R];
+  }
+
+  header();
+  const groups = [
+    ['Trucks', 'truck', truckRows],
+    ['Trailers', 'trailer', trailerRows],
+    ['Vessels', 'vessel', vesselRows]
+  ];
+  let any=false;
+  groups.forEach(([label,type,rowFn])=>{
+    const items = equipment.filter(e => e.type === type)
+      .sort((a,b)=> String(a.unit||'').localeCompare(String(b.unit||'')));
+    if (!items.length) return;
+    any=true;
+    sectionTitle(label, items.length);
+    items.forEach(e => {
+      const [L,R]=rowFn(e); specCard(e,L,R);
+      if(e.notes){ need(16); doc.setFont('helvetica','italic'); doc.setFontSize(8); doc.setTextColor(...GRAY); doc.text('Notes: '+e.notes, M+12, y); doc.setFont('helvetica','normal'); y+=14; }
+    });
+    y += 6;
+  });
+  if (!any){ showToast('No equipment to export'); return; }
+
+  doc.save('KMT_Equipment_Specs_'+new Date().toISOString().slice(0,10)+'.pdf');
+  showToast('Equipment PDF exported ✓');
 }
 
 function viewEquipment(id) {
