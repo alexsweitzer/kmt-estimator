@@ -1,4 +1,4 @@
-<!-- KMT Employee Portal v3.9 -->
+<!-- KMT Employee Portal v4.1 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -1980,7 +1980,10 @@ function computeEstimate(v){
   const vehicleAlloc=tripPrice*r.truck;
   const kmAlloc=tripPrice*r.km;
   const smsAlloc=tripPrice*r.sms;
-  const gallons=v.tripMiles>0?v.tripMiles/r.mpgLoaded:0;
+  const deadheadMiles=(v.deadheadOut||0)+(v.deadheadBack||0);
+  const deadheadGallons=r.mpgEmpty>0?deadheadMiles/r.mpgEmpty:0;
+  const loadedGallons=r.mpgLoaded>0&&v.tripMiles>0?v.tripMiles/r.mpgLoaded:0;
+  const gallons=deadheadGallons+loadedGallons;
   const fuelCost=gallons*r.dieselPrice;
   const profit=tripPrice-fuelCost-driverPay-totalTolls-permitCost-osowCost-overnight-pilotEst-maintAlloc-insAlloc-vehicleAlloc-kmAlloc-smsAlloc;
   // Break-even: sum of all costs assuming tripPrice = calcTripPrice (not custom)
@@ -4752,7 +4755,19 @@ async function enterBreakdown(){
 
 function bdDefaultConfig(){
   return { fuel_per_mile:0.6667, driver_pct:0.25, maint_pct:0.15, ins_pct:0.16,
-           truck_pct:0.09, km_pct:0.15, sms_pct:0.00, km_start_balance:225149.13 };
+           truck_pct:0.09, km_pct:0.15, sms_pct:0.00, km_start_balance:225149.13,
+           diesel_price:5.5, mpg_loaded:5.0, mpg_empty:8.0 };
+}
+
+// Estimator-aligned fuel: deadhead miles at empty MPG + loaded miles at loaded MPG × diesel.
+// Falls back to loaded-only when no deadhead split exists (loads store total miles only).
+function bdFuelCost(cfg, loadedMiles, deadheadMiles){
+  const diesel = num((typeof rates!=='undefined' && rates && rates.dieselPrice) || cfg.diesel_price || 5.5);
+  const mpgL   = num((typeof rates!=='undefined' && rates && rates.mpgLoaded)   || cfg.mpg_loaded  || 5.0);
+  const mpgE   = num((typeof rates!=='undefined' && rates && rates.mpgEmpty)    || cfg.mpg_empty   || 8.0);
+  const dhGal  = mpgE>0 ? (num(deadheadMiles)/mpgE) : 0;
+  const ldGal  = mpgL>0 ? (num(loadedMiles)/mpgL)   : 0;
+  return round2((dhGal+ldGal)*diesel);
 }
 
 // ── Live rows: one per completed land load dated on/after the cutover ──
@@ -4768,7 +4783,10 @@ function liveRowsFromLoads(){
     // Base figures: manual overrides win, then bid, then the load itself.
     const price  = pick(manual,'price',  num(l.trip_price) || (bid?num(bid.trip_price):0));
     const miles  = pick(manual,'miles',  num(l.miles_total) || (bid?num(bid.trip_miles):0));
-    const fuel   = pick(manual,'fuel',   bid&&bid.fuel_cost  !=null ? num(bid.fuel_cost)  : round2(miles*cfg.fuel_per_mile));
+    const fuel   = pick(manual,'fuel',
+                     bid && bid.fuel_cost != null ? num(bid.fuel_cost)
+                     : bid ? bdFuelCost(cfg, num(bid.trip_miles), num(bid.deadhead_out)+num(bid.deadhead_back))
+                     : bdFuelCost(cfg, miles, 0));
     const driver = pick(manual,'driver_pay', bid&&bid.driver_pay!=null ? num(bid.driver_pay) : round2(price*cfg.driver_pct));
     const permit = pick(manual,'permit', bid&&bid.permits    !=null ? num(bid.permits)    : 0);
     const toll   = pick(manual,'toll',   bid&&bid.total_tolls!=null ? num(bid.total_tolls): 0);
@@ -5106,9 +5124,11 @@ function renderBreakdownSettings(){
       <span id="bd-settings-caret" style="color:var(--text-muted)">▸</span>
     </div>
     <div id="bd-settings-body" style="display:none;margin-top:0.875rem">
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.875rem">These drive live-month math only. Historical months stay locked. Percentages are of gross trip price; fuel is gallons per mile.</p>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.875rem">These drive live-month math only. Historical months stay locked. Percentages are of gross trip price. Fuel uses the same model as the estimator: deadhead miles at empty MPG plus loaded miles at loaded MPG, times diesel price. Blank here falls back to the Rates tab values.</p>
       <div class="form-grid">
-        <div class="field"><label>Fuel (gal/mi)</label><input type="number" step="0.0001" id="cfg-fuel" value="${num(c.fuel_per_mile)}"></div>
+        <div class="field"><label>Diesel Price ($/gal)</label><input type="number" step="0.01" id="cfg-diesel" value="${num(c.diesel_price)||5.5}"></div>
+        <div class="field"><label>MPG Loaded</label><input type="number" step="0.1" id="cfg-mpgl" value="${num(c.mpg_loaded)||5.0}"></div>
+        <div class="field"><label>MPG Empty</label><input type="number" step="0.1" id="cfg-mpge" value="${num(c.mpg_empty)||8.0}"></div>
         <div class="field"><label>Driver Pay %</label><input type="number" step="0.1" id="cfg-driver" value="${pct(c.driver_pct)}"></div>
         <div class="field"><label>Maintenance %</label><input type="number" step="0.1" id="cfg-maint" value="${pct(c.maint_pct)}"></div>
         <div class="field"><label>Insurance %</label><input type="number" step="0.1" id="cfg-ins" value="${pct(c.ins_pct)}"></div>
@@ -5134,7 +5154,7 @@ function toggleBdSettings(){
 async function saveBreakdownConfig(){
   const g=(id)=>parseFloat(document.getElementById(id).value)||0;
   const patch={
-    fuel_per_mile:g('cfg-fuel'),
+    diesel_price:g('cfg-diesel'), mpg_loaded:g('cfg-mpgl'), mpg_empty:g('cfg-mpge'),
     driver_pct:g('cfg-driver')/100, maint_pct:g('cfg-maint')/100, ins_pct:g('cfg-ins')/100,
     truck_pct:g('cfg-truck')/100, km_pct:g('cfg-km')/100,
     km_start_balance:g('cfg-kmbal')
