@@ -1273,8 +1273,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <button class="btn" onclick="enterIfta()">↻ Refresh</button>
       <button class="btn" onclick="exportIftaCSV()">⬇ Export CSV</button>
       <button class="btn" onclick="exportIftaPDF()">⬇ Export PDF</button>
+      <button class="btn accent" onclick="saveIftaFinalReport()">📁 Save Final Report</button>
     </div>
     <div id="ifta-due" style="font-size:12px;color:var(--text-muted);margin-top:0.6rem"></div>
+    <div id="ifta-archive-banner"></div>
   </div>
 
   <div id="ifta-kpis" class="metrics-grid" style="margin-bottom:1rem"></div>
@@ -1283,7 +1285,13 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 
   <div class="card">
     <div class="card-title">Jurisdiction Worksheet</div>
-    <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.75rem">Miles come from the ELD. Tax-paid gallons come from the load logs. Taxable gallons = state miles ÷ fleet MPG. Rates are optional ($/gal from the current quarter's IFTA rate matrix); without them the net gallons column is still the number that matters. Surcharges (KY, IN, VA) are not modeled.</p>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.75rem">Miles come from the ELD. Tax-paid gallons come from the load logs. Taxable gallons = state miles ÷ fleet MPG. Rates and surcharges (KY, IN, VA) load automatically from the official IFTA matrix for the selected quarter. You can still override any rate by hand.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:0.75rem">
+      <button class="btn sm" onclick="iftaPullRates(false)">⟳ Pull IFTA Rates</button>
+      <button class="btn sm" onclick="document.getElementById('ifta-matrix-file').click()">⬆ Upload Matrix CSV</button>
+      <input type="file" id="ifta-matrix-file" accept=".csv,text/csv" style="display:none" onchange="iftaUploadMatrix(this)">
+      <span id="ifta-rate-src" style="font-size:12px;color:var(--text-muted)"></span>
+    </div>
     <details style="margin-bottom:0.75rem">
       <summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--navy)">Paste miles from ELD report</summary>
       <p style="font-size:12px;color:var(--text-muted);margin:6px 0">One state per line, state code or name followed by miles, e.g. <code>MD 1,284</code> or <code>Virginia, 412.5</code>. Replaces the miles currently entered.</p>
@@ -1324,6 +1332,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     </div>
   </div>
   <div id="ifta-empty" style="display:none" class="empty"><div class="empty-icon">⛽</div><p>No fuel entries found for this quarter.</p></div>
+
+  <div class="card">
+    <div class="card-title">Saved Reports</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:0.75rem">Each saved report is a frozen copy of the quarter as filed. Later edits to load logs, miles or rates don't change it.</p>
+    <div id="ifta-history"><div class="loading"><span class="spinner"></span>Loading…</div></div>
+  </div>
   <div style="height:1rem"></div>
 </div>
 <style>
@@ -7535,6 +7549,10 @@ function restorePermits(permits) {
 // ELD miles-by-state and optional tax rates are stored per quarter in
 // kmt_ifta_quarters (run 17_ifta_quarters.sql). If that table is missing the
 // report still works, it just can't save miles.
+// Tax rates + surcharges are pulled from the official IFTA, Inc. quarterly
+// matrix CSV (iftach.org) through the ifta-rates Supabase Edge Function, or
+// from a matrix CSV uploaded by hand. Finalized reports are frozen snapshots in
+// kmt_ifta_reports (run 18_ifta_reports.sql).
 // ══════════════════════════════════════════════
 const IFTA_JURIS = {
   AL:'Alabama',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',
@@ -7557,6 +7575,10 @@ let iftaQuarter = null;      // { id, miles:{ST:n}, rates:{Diesel:{ST:r},Gas:{ST
 let iftaTableOk = true;
 let iftaDirty = false;
 let iftaLastCalc = null;
+let iftaReports = [];         // saved report headers
+let iftaReportsOk = true;
+// Matrix row names that don't match IFTA_JURIS spelling
+const IFTA_MATRIX_ALIAS = { 'NEWFOUNDLAND':'NL', 'NEWFOUNDLAND AND LABRADOR':'NL' };
 
 function iftaEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function iftaNum(v){ if(v===''||v===null||v===undefined) return 0; const n=parseFloat(String(v).replace(/[$,\s]/g,'')); return isNaN(n)?0:n; }
@@ -7593,6 +7615,18 @@ function iftaQuarterRange(){
   };
 }
 
+function iftaMatrixId(){
+  return document.getElementById('ifta-q').value + 'Q' + document.getElementById('ifta-year').value;
+}
+function iftaCurrentMeta(){
+  const r = iftaQuarterRange();
+  return { quarter_id: iftaQuarterId(), label: r.label, start: r.start, end: r.end, due: r.due.toISOString() };
+}
+function iftaHasRates(){
+  const r = (iftaQuarter && iftaQuarter.rates) || {};
+  return Object.keys(r.Diesel||{}).length + Object.keys(r.Gas||{}).length > 0;
+}
+
 async function enterIfta(){
   document.getElementById('ifta-receipts-body').innerHTML = '<tr><td colspan="10"><div class="loading"><span class="spinner"></span>Loading fuel logs…</div></td></tr>';
   try {
@@ -7604,6 +7638,8 @@ async function enterIfta(){
   buildIftaYears();
   await loadIftaQuarter();
   renderIfta();
+  loadIftaReports();
+  if (!iftaHasRates()) iftaPullRates(true);
 }
 
 function buildIftaYears(){
@@ -7637,11 +7673,12 @@ async function iftaQuarterChanged(){
   }
   await loadIftaQuarter();
   renderIfta();
+  if (!iftaHasRates()) iftaPullRates(true);
 }
 
 async function loadIftaQuarter(){
   const id = iftaQuarterId();
-  iftaQuarter = { id, miles:{}, rates:{ Diesel:{}, Gas:{} }, _exists:false };
+  iftaQuarter = { id, miles:{}, rates:{ Diesel:{}, Gas:{}, Surcharge:{ Diesel:{}, Gas:{} } }, _exists:false };
   iftaDirty = false;
   try {
     const rows = await sb('kmt_ifta_quarters?select=*&id=eq.' + encodeURIComponent(id));
@@ -7649,7 +7686,7 @@ async function loadIftaQuarter(){
     if (rows && rows[0]) {
       const r = rows[0];
       iftaQuarter.miles = r.miles || {};
-      iftaQuarter.rates = Object.assign({ Diesel:{}, Gas:{} }, r.rates || {});
+      iftaQuarter.rates = Object.assign({ Diesel:{}, Gas:{}, Surcharge:{ Diesel:{}, Gas:{} } }, r.rates || {});
       iftaQuarter._exists = true;
     }
   } catch(e) {
@@ -7664,6 +7701,109 @@ function iftaSetSaveState(){
   if (!iftaTableOk) el.innerHTML = '<span style="color:var(--amber)">Can\'t save: run 17_ifta_quarters.sql</span>';
   else if (iftaDirty) el.innerHTML = '<span style="color:var(--amber)">Unsaved changes</span>';
   else el.textContent = iftaQuarter && iftaQuarter._exists ? 'Saved' : '';
+  const src = document.getElementById('ifta-rate-src');
+  if (src) {
+    const m = iftaQuarter && iftaQuarter.rates && iftaQuarter.rates._meta;
+    src.innerHTML = m
+      ? `Rates: ${iftaEsc(m.source)}, pulled ${new Date(m.fetched_at).toLocaleDateString()}${m.edited?' (edited by hand)':''}`
+      : (iftaHasRates() ? 'Rates entered by hand' : '<span style="color:var(--amber)">No rates loaded for this quarter</span>');
+  }
+}
+
+// ── IFTA tax rate matrix (official quarterly CSV from iftach.org) ──
+function parseIftaMatrixCsv(text){
+  const lines = String(text||'').replace(/^\uFEFF/,'').split(/\r?\n/).map(l => l.split(','));
+  const label = ((lines[0]||[])[0]||'').trim();             // e.g. "3rd Quarter 2026"
+  let gasCol = -1, dieselCol = -1;
+  for (const row of lines) {
+    const gi = row.findIndex(c => c.trim().toLowerCase() === 'gasoline');
+    if (gi >= 0) { gasCol = gi; dieselCol = row.findIndex(c => c.trim().toLowerCase() === 'special'); break; }
+  }
+  if (gasCol < 0 || dieselCol < 0) throw new Error('Not an IFTA tax matrix CSV (no Gasoline / Special Diesel columns).');
+  const money = v => { const t = String(v||'').replace(/[$\s]/g,''); if (!t || t === '-') return null; const n = parseFloat(t); return isNaN(n) ? null : n; };
+  const out = { label, Diesel:{}, Gas:{}, Surcharge:{ Diesel:{}, Gas:{} } };
+  let count = 0;
+  lines.forEach(row => {
+    const name = (row[0]||'').trim();
+    if (!name || (row[1]||'').trim() !== 'U.S.') return;     // US$ per gallon rows only
+    const isSur = /surchg/i.test(name);
+    const clean = name.replace(/#\s*\d+/g,'').replace(/surchg/ig,'').trim().toUpperCase();
+    const st = IFTA_MATRIX_ALIAS[clean] || IFTA_NAME_TO_CODE[clean];
+    if (!st) return;
+    const d = money(row[dieselCol]), g = money(row[gasCol]);
+    const tgt = isSur ? out.Surcharge : out;
+    if (d !== null) tgt.Diesel[st] = d;
+    if (g !== null) tgt.Gas[st] = g;
+    if (!isSur) count++;
+  });
+  if (count < 40) throw new Error('Only found ' + count + ' jurisdictions in the matrix file.');
+  return out;
+}
+
+async function iftaFetchMatrixText(qid){
+  const errs = [];
+  // 1) Supabase Edge Function proxy (iftach.org doesn't allow browser cross-origin requests)
+  try {
+    const r = await fetch(SB_URL + '/functions/v1/ifta-rates?q=' + encodeURIComponent(qid),
+      { headers: { apikey: SB_KEY, Authorization: 'Bearer ' + SB_KEY } });
+    const t = await r.text();
+    if (r.ok) return t;
+    errs.push('Edge function: ' + (t.slice(0,160) || r.status));
+  } catch(e) { errs.push('Edge function: ' + e.message); }
+  // 2) Direct, in case IFTA ever enables CORS
+  try {
+    const r = await fetch('https://www.iftach.org/taxmatrix/charts/' + qid + '.csv');
+    if (r.ok) return await r.text();
+    errs.push('Direct: HTTP ' + r.status);
+  } catch(e) { errs.push('Direct: blocked by browser (CORS)'); }
+  throw new Error(errs.join('\n'));
+}
+
+function iftaApplyMatrix(parsed, sourceLabel){
+  const keepMeta = { source: sourceLabel, label: parsed.label, fetched_at: new Date().toISOString() };
+  iftaQuarter.rates = { Diesel: parsed.Diesel, Gas: parsed.Gas, Surcharge: parsed.Surcharge, _meta: keepMeta };
+}
+
+async function iftaPullRates(auto){
+  const qid = iftaMatrixId();
+  const forId = iftaQuarter.id;
+  if (!auto && iftaHasRates() && !confirm('Replace the rates for ' + iftaQuarterRange().label + ' with the official IFTA matrix?')) return;
+  const src = document.getElementById('ifta-rate-src');
+  if (src) src.textContent = 'Pulling ' + qid + ' rates from IFTA…';
+  try {
+    const parsed = parseIftaMatrixCsv(await iftaFetchMatrixText(qid));
+    if (iftaQuarter.id !== forId) return;                    // user switched quarters meanwhile
+    const want = new RegExp('^' + qid[0] + '\\w*\\s+quarter\\s+' + qid.slice(2), 'i');
+    if (parsed.label && !want.test(parsed.label)) throw new Error('IFTA returned "' + parsed.label + '" instead of ' + qid + '.');
+    iftaApplyMatrix(parsed, 'IFTA, Inc. ' + qid + ' matrix');
+    renderIfta();
+    if (iftaTableOk) await saveIftaQuarter(true); else iftaMarkDirty();
+    if (!auto) showToast(qid + ' IFTA rates loaded ✓');
+  } catch(e) {
+    iftaSetSaveState();
+    if (!auto) alert('Could not pull the ' + qid + ' rate matrix.\n\n' + e.message +
+      '\n\nDeploy the ifta-rates Edge Function (see supabase/functions/ifta-rates), or download the CSV from iftach.org/taxmatrix4 and use "Upload Matrix CSV". If the quarter hasn\'t started yet, IFTA may not have posted it.');
+  }
+}
+
+function iftaUploadMatrix(input){
+  const f = input.files && input.files[0]; input.value = '';
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = async () => {
+    try {
+      const parsed = parseIftaMatrixCsv(rd.result);
+      const qid = iftaMatrixId();
+      const want = new RegExp('^' + qid[0] + '\\w*\\s+quarter\\s+' + qid.slice(2), 'i');
+      if (parsed.label && !want.test(parsed.label) &&
+          !confirm('This file is "' + parsed.label + '" but you\'re on ' + iftaQuarterRange().label + '. Use it anyway?')) return;
+      iftaApplyMatrix(parsed, (parsed.label || 'IFTA matrix') + ' (uploaded)');
+      renderIfta();
+      if (iftaTableOk) await saveIftaQuarter(true); else iftaMarkDirty();
+      showToast('Rate matrix loaded ✓');
+    } catch(e) { alert('Could not read that file:\n\n' + e.message); }
+  };
+  rd.readAsText(f);
 }
 
 // ── Core calculation ──
@@ -7730,6 +7870,8 @@ function computeIfta(){
   // Jurisdiction math
   const miles = iftaQuarter.miles || {};
   const rates = (iftaQuarter.rates || {})[fuelType] || {};
+  const surRates = (((iftaQuarter.rates || {}).Surcharge) || {})[fuelType] || {};
+  const ratesLoaded = iftaHasRates();
   const paidBy = {}, receiptCount = {};
   receipts.forEach(r => {
     if (r.state && r.gal > 0) { paidBy[r.state] = (paidBy[r.state]||0) + r.gal; receiptCount[r.state] = (receiptCount[r.state]||0)+1; }
@@ -7746,9 +7888,15 @@ function computeIfta(){
     const net = taxable !== null ? taxable - paid : null;
     const rate = rates[st] !== undefined && rates[st] !== '' && rates[st] !== null ? iftaNum(rates[st]) : null;
     const tax = (net !== null && rate !== null) ? Math.round(net*rate*100)/100 : null;
+    // Surcharge (KY, IN, VA): owed on ALL taxable gallons, no credit for fuel bought there
+    const sur = surRates[st] !== undefined && surRates[st] !== null ? iftaNum(surRates[st]) : null;
+    const surTax = (taxable !== null && sur) ? Math.round(taxable*sur*100)/100 : null;
+    const totalTax = (tax !== null || surTax !== null) ? Math.round(((tax||0) + (surTax||0))*100)/100 : null;
     if (totalMiles > 0 && paid > 0 && m === 0)
       flags.push({ msg:`Fuel bought in ${st} (${iftaInt(paid)} gal) but no ELD miles entered for ${st}. Check the mileage report.` });
-    return { st, miles:m, paid, taxable, net, rate, tax, hasMilesKey: miles[st] !== undefined };
+    if (ratesLoaded && net !== null && net !== 0 && rate === null && st !== 'OR')
+      flags.push({ msg:`No ${fuelType.toLowerCase()} tax rate for ${st}. Enter it by hand from the IFTA matrix.` });
+    return { st, miles:m, paid, taxable, net, rate, tax, sur, surTax, totalTax, hasMilesKey: miles[st] !== undefined };
   });
 
   const tot = {
@@ -7756,7 +7904,8 @@ function computeIfta(){
     taxable: juris.reduce((s,j)=>s+(j.taxable||0),0),
     paid: juris.reduce((s,j)=>s+j.paid,0),
     net: juris.reduce((s,j)=>s+(j.net||0),0),
-    tax: juris.some(j=>j.tax!==null) ? juris.reduce((s,j)=>s+(j.tax||0),0) : null
+    surTax: juris.reduce((s,j)=>s+(j.surTax||0),0),
+    tax: juris.some(j=>j.totalTax!==null) ? Math.round(juris.reduce((s,j)=>s+(j.totalTax||0),0)*100)/100 : null
   };
   const retail$ = receipts.reduce((s,r)=>s+(r.source==='Retail' && r.total ? r.total : 0),0);
   const yardGal = receipts.reduce((s,r)=>s+(r.source==='Home tank' ? r.gal : 0),0);
@@ -7786,6 +7935,8 @@ function renderIfta(){
   renderIftaJuris(c);
   renderIftaKpis(c);
   renderIftaFlags(c);
+  iftaSetSaveState();
+  renderIftaArchiveBanner(c);
 
   const body = document.getElementById('ifta-receipts-body');
   document.getElementById('ifta-empty').style.display = c.receipts.length ? 'none' : 'block';
@@ -7814,7 +7965,7 @@ function renderIftaKpis(c){
     m('Retail Fuel $', iftaMoney(c.retail$), 'From load logs') +
     m('ELD Miles', c.totalMiles ? iftaInt(c.totalMiles) : '—', c.truckSel ? 'Must match Truck #'+iftaEsc(c.truckSel)+' only' : 'All qualified trucks') +
     m('Fleet MPG', c.mpg ? c.mpg.toFixed(2) : '—', c.mpg ? 'Miles ÷ gallons' : 'Enter ELD miles') +
-    m('Net Tax Due / (Credit)', c.tot.tax!==null ? iftaMoney(c.tot.tax) : (c.mpg ? iftaInt(c.tot.net)+' gal' : '—'), c.tot.tax!==null ? 'Before surcharges & interest' : (c.mpg ? 'Net gallons; add rates for $' : ''));
+    m('Net Tax Due / (Credit)', c.tot.tax!==null ? iftaMoney(c.tot.tax) : (c.mpg ? iftaInt(c.tot.net)+' gal' : '—'), c.tot.tax!==null ? (c.tot.surTax ? 'Incl. '+iftaMoney(c.tot.surTax)+' surcharge' : 'Before interest') : (c.mpg ? 'Net gallons; add rates for $' : ''));
 }
 
 function renderIftaFlags(c){
@@ -7859,7 +8010,10 @@ function iftaFillComputed(c){
     set('taxable', j.taxable!==null ? iftaInt(j.taxable) : '—');
     set('paid', iftaInt(j.paid));
     set('net', j.net!==null ? `<span class="${j.net>0?'ifta-pos':(j.net<0?'ifta-neg':'')}">${iftaInt(j.net)}</span>` : '—');
-    set('tax', j.tax!==null ? `<span class="${j.tax>0?'ifta-pos':(j.tax<0?'ifta-neg':'')}">${iftaMoney(j.tax)}</span>` : '—');
+    set('tax', j.totalTax!==null
+      ? `<span class="${j.totalTax>0?'ifta-pos':(j.totalTax<0?'ifta-neg':'')}">${iftaMoney(j.totalTax)}</span>` +
+        (j.surTax ? `<div style="font-size:10px;color:var(--text-muted)">incl. ${iftaMoney(j.surTax)} surcharge</div>` : '')
+      : '—');
   });
   document.getElementById('ifta-juris-foot').innerHTML = c.juris.length ? `
     <tr style="font-weight:700;border-top:2px solid var(--border)">
@@ -7881,6 +8035,7 @@ function iftaRecalc(){
   iftaFillComputed(c);
   renderIftaKpis(c);
   renderIftaFlags(c);
+  renderIftaArchiveBanner(c);
 }
 
 function iftaMarkDirty(){ iftaDirty = true; iftaSetSaveState(); }
@@ -7893,6 +8048,7 @@ function iftaSetRate(st, v){
   const ft = document.getElementById('ifta-fuel').value;
   iftaQuarter.rates[ft] = iftaQuarter.rates[ft] || {};
   if (v === '') delete iftaQuarter.rates[ft][st]; else iftaQuarter.rates[ft][st] = parseFloat(v)||0;
+  if (iftaQuarter.rates._meta) iftaQuarter.rates._meta.edited = true;
   iftaMarkDirty(); iftaRecalc();
 }
 function iftaAddState(){
@@ -7905,7 +8061,6 @@ function iftaAddState(){
 }
 function iftaRemoveState(st){
   delete iftaQuarter.miles[st];
-  Object.values(iftaQuarter.rates||{}).forEach(r => { delete r[st]; });
   iftaMarkDirty(); renderIfta();
 }
 
@@ -7934,7 +8089,7 @@ function iftaApplyPaste(){
   if (bad.length) console.warn('IFTA paste skipped:', bad);
 }
 
-async function saveIftaQuarter(){
+async function saveIftaQuarter(silent){
   if (!iftaTableOk) { alert('Miles can\'t be saved yet.\n\nRun 17_ifta_quarters.sql in Supabase, then refresh.'); return; }
   const payload = {
     miles: iftaQuarter.miles, rates: iftaQuarter.rates,
@@ -7945,7 +8100,7 @@ async function saveIftaQuarter(){
     if (iftaQuarter._exists) await sb('kmt_ifta_quarters?id=eq.' + encodeURIComponent(iftaQuarter.id), 'PATCH', payload);
     else { await sb('kmt_ifta_quarters', 'POST', Object.assign({ id: iftaQuarter.id }, payload)); iftaQuarter._exists = true; }
     iftaDirty = false; iftaSetSaveState();
-    showToast(iftaQuarter.id + ' saved ✓');
+    if (!silent) showToast(iftaQuarter.id + ' saved ✓');
   } catch(e) {
     alert('IFTA save error:\n\n' + (e.message||e) + '\n\nIf this mentions a missing table, run 17_ifta_quarters.sql.');
   }
@@ -7956,27 +8111,200 @@ function iftaOpenLoad(id){
   openCalLoad(id);
 }
 
-// ── Exports ──
-function exportIftaCSV(){
-  const c = iftaLastCalc || computeIfta();
+// ── Saved (finalized) reports ──
+// A saved report is a frozen snapshot: later edits to load logs, miles or
+// rates never change it. Re-export its PDF/CSV any time from Saved Reports.
+async function loadIftaReports(){
+  const el = document.getElementById('ifta-history');
+  try {
+    iftaReports = await sb('kmt_ifta_reports?select=id,quarter_id,fuel_type,truck,total_tax,total_miles,total_gal,notes,created_by,created_at&order=quarter_id.desc,created_at.desc') || [];
+    iftaReportsOk = true;
+  } catch(e) { iftaReports = []; iftaReportsOk = false; }
+  renderIftaHistory();
+  if (iftaLastCalc) renderIftaArchiveBanner(iftaLastCalc);
+}
+
+function renderIftaHistory(){
+  const el = document.getElementById('ifta-history');
+  if (!el) return;
+  if (!iftaReportsOk) { el.innerHTML = '<p style="font-size:13px;color:var(--amber)">Saved reports aren\'t available yet. Run 18_ifta_reports.sql in Supabase.</p>'; return; }
+  if (!iftaReports.length) { el.innerHTML = '<p style="font-size:13px;color:var(--text-muted)">No saved reports yet. When a quarter is ready to file, tap 📁 Save Final Report.</p>'; return; }
+  const isAdmin = currentSession && currentSession.role === 'admin';
+  el.innerHTML = `<div style="overflow-x:auto"><table class="rate-table" style="min-width:620px">
+    <thead><tr><th>Quarter</th><th>Fuel</th><th>Trucks</th><th style="text-align:right">Miles</th><th style="text-align:right">Gallons</th><th style="text-align:right">Tax / (Credit)</th><th>Saved</th><th>Notes</th><th></th></tr></thead>
+    <tbody>${iftaReports.map(r => `<tr>
+      <td><b>${iftaEsc(r.quarter_id.replace('-Q',' Q'))}</b></td>
+      <td>${iftaEsc(r.fuel_type)}</td>
+      <td>${r.truck ? '#'+iftaEsc(r.truck) : 'All'}</td>
+      <td style="text-align:right">${r.total_miles!=null?iftaInt(r.total_miles):'—'}</td>
+      <td style="text-align:right">${r.total_gal!=null?iftaGal(r.total_gal):'—'}</td>
+      <td style="text-align:right">${r.total_tax!=null?iftaMoney(r.total_tax):'—'}</td>
+      <td style="font-size:12px">${new Date(r.created_at).toLocaleDateString()}<div style="color:var(--text-muted)">${iftaEsc(r.created_by||'')}</div></td>
+      <td style="font-size:12px;max-width:160px">${iftaEsc(r.notes||'')}</td>
+      <td style="white-space:nowrap">
+        <button class="btn sm" onclick="viewIftaReport('${r.id}')">View</button>
+        <button class="btn sm" onclick="iftaReportExport('${r.id}','pdf')">PDF</button>
+        <button class="btn sm" onclick="iftaReportExport('${r.id}','csv')">CSV</button>
+        ${isAdmin?`<button class="btn sm danger" onclick="deleteIftaReport('${r.id}')">🗑</button>`:''}
+      </td></tr>`).join('')}</tbody></table></div>`;
+}
+
+function iftaMatchingReport(){
+  const q = iftaQuarter && iftaQuarter.id;
+  const ft = document.getElementById('ifta-fuel').value;
+  const tr = document.getElementById('ifta-truck').value || '';
+  return iftaReports.find(r => r.quarter_id === q && r.fuel_type === ft && (r.truck||'') === tr);
+}
+
+function renderIftaArchiveBanner(c){
+  const el = document.getElementById('ifta-archive-banner');
+  if (!el) return;
+  const r = iftaMatchingReport();
+  if (!r) { el.innerHTML = ''; return; }
+  const diffs = [];
+  if (r.total_gal != null && Math.abs(r.total_gal - c.totalGal) > 0.05) diffs.push(`gallons ${iftaGal(r.total_gal)} → ${iftaGal(c.totalGal)}`);
+  if (r.total_miles != null && Math.abs(r.total_miles - c.totalMiles) > 0.5) diffs.push(`miles ${iftaInt(r.total_miles)} → ${iftaInt(c.totalMiles)}`);
+  if (r.total_tax != null && c.tot.tax != null && Math.abs(r.total_tax - c.tot.tax) > 0.005) diffs.push(`tax ${iftaMoney(r.total_tax)} → ${iftaMoney(c.tot.tax)}`);
+  const when = new Date(r.created_at).toLocaleDateString();
+  el.innerHTML = diffs.length
+    ? `<div style="margin-top:0.6rem;padding:8px 10px;border-radius:var(--radius);background:var(--amber-bg);color:var(--amber);font-size:12px">⚠️ A final report for this quarter was saved ${when}, and the live data has changed since (${diffs.join(', ')}). If that report was already filed, you may need an amended return. <a href="#" onclick="event.preventDefault();viewIftaReport('${r.id}')" style="color:inherit;font-weight:600">View saved report</a></div>`
+    : `<div style="margin-top:0.6rem;padding:8px 10px;border-radius:var(--radius);background:var(--green-bg);color:var(--green);font-size:12px">✓ Final report saved ${when}${r.notes?' ('+iftaEsc(r.notes)+')':''}. Live data still matches. <a href="#" onclick="event.preventDefault();viewIftaReport('${r.id}')" style="color:inherit;font-weight:600">View</a></div>`;
+}
+
+async function saveIftaFinalReport(){
+  if (!iftaReportsOk) { alert('Run 18_ifta_reports.sql in Supabase first, then refresh.'); return; }
+  const c = computeIfta();
+  if (!c.receipts.length && !c.juris.length) { showToast('Nothing to save'); return; }
+  const warn = [];
+  if (!c.totalMiles) warn.push('• No ELD miles entered');
+  if (c.tot.tax === null) warn.push('• No tax rates loaded');
+  if (c.flags.length) warn.push(`• ${c.flags.length} item(s) still in Check Before Filing`);
+  if (iftaDirty) warn.push('• Unsaved miles/rates (they will be included in this report and saved)');
+  const existing = iftaMatchingReport();
+  if (existing) warn.push(`• A report for this quarter was already saved ${new Date(existing.created_at).toLocaleDateString()} (it will be kept; this adds a new one)`);
+  const meta = iftaCurrentMeta();
+  const notes = prompt(
+    `Save the ${meta.label} ${c.fuelType} report as final?\n\n` +
+    (warn.length ? warn.join('\n') + '\n\n' : '') +
+    'Optional note (e.g. filing confirmation #, amended return):', '');
+  if (notes === null) return;
+  if (iftaDirty && iftaTableOk) await saveIftaQuarter(true);
+  const rates = iftaQuarter.rates || {};
+  const snapshot = {
+    meta: Object.assign(meta, { fuel_type: c.fuelType, truck: c.truckSel || '' }),
+    calc: c,
+    miles: iftaQuarter.miles,
+    rates_meta: rates._meta || null,
+    app_version: 1
+  };
+  try {
+    await sb('kmt_ifta_reports', 'POST', {
+      quarter_id: meta.quarter_id, fuel_type: c.fuelType, truck: c.truckSel || null,
+      total_tax: c.tot.tax, total_miles: c.totalMiles, total_gal: Math.round(c.totalGal*10)/10,
+      notes: notes.trim() || null, snapshot,
+      created_by: currentSession ? currentSession.username : null
+    });
+    showToast(meta.label + ' report saved ✓');
+    await loadIftaReports();
+  } catch(e) {
+    alert('Could not save report:\n\n' + (e.message||e) + '\n\nIf this mentions a missing table, run 18_ifta_reports.sql.');
+  }
+}
+
+async function iftaGetReport(id){
+  const rows = await sb('kmt_ifta_reports?select=*&id=eq.' + encodeURIComponent(id));
+  if (!rows || !rows[0]) throw new Error('Report not found');
+  return rows[0];
+}
+
+async function viewIftaReport(id){
+  let r;
+  try { r = await iftaGetReport(id); } catch(e) { showToast('Could not open report'); return; }
+  const { meta, calc: c } = r.snapshot || {};
+  if (!meta || !c) { showToast('Report data is incomplete'); return; }
+  const saved = new Date(r.created_at);
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.onclick = e => { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = `<div class="modal" style="max-width:860px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:0.75rem">
+      <div>
+        <div style="font-size:17px;font-weight:700;color:var(--navy)">IFTA ${iftaEsc(meta.label)} · ${iftaEsc(meta.fuel_type)}${meta.truck?' · Truck #'+iftaEsc(meta.truck):''}</div>
+        <div style="font-size:12px;color:var(--text-muted)">Saved ${saved.toLocaleString()} by ${iftaEsc(r.created_by||'—')}${r.notes?' · '+iftaEsc(r.notes):''}</div>
+        ${r.snapshot.rates_meta?`<div style="font-size:12px;color:var(--text-muted)">Rates: ${iftaEsc(r.snapshot.rates_meta.source)}</div>`:''}
+      </div>
+      <button class="btn sm" onclick="this.closest('.overlay').remove()">✕</button>
+    </div>
+    <div class="metrics-grid" style="margin-bottom:0.75rem">
+      <div class="metric"><div class="m-label">ELD Miles</div><div class="m-value">${iftaInt(c.totalMiles)}</div></div>
+      <div class="metric"><div class="m-label">${iftaEsc(c.fuelType)} Gallons</div><div class="m-value">${iftaGal(c.totalGal)}</div></div>
+      <div class="metric"><div class="m-label">Fleet MPG</div><div class="m-value">${c.mpg?c.mpg.toFixed(2):'—'}</div></div>
+      <div class="metric"><div class="m-label">Tax / (Credit)</div><div class="m-value">${c.tot.tax!=null?iftaMoney(c.tot.tax):'—'}</div></div>
+    </div>
+    <div style="overflow-x:auto;margin-bottom:0.75rem"><table class="rate-table" style="min-width:600px">
+      <thead><tr><th>State</th><th style="text-align:right">Miles</th><th style="text-align:right">Taxable</th><th style="text-align:right">Tax-Paid</th><th style="text-align:right">Net</th><th style="text-align:right">Rate</th><th style="text-align:right">Surcharge</th><th style="text-align:right">Tax / (Credit)</th></tr></thead>
+      <tbody>${c.juris.map(j=>`<tr><td><b>${j.st}</b></td><td style="text-align:right">${iftaInt(j.miles)}</td><td style="text-align:right">${j.taxable!=null?iftaInt(j.taxable):'—'}</td><td style="text-align:right">${iftaInt(j.paid)}</td><td style="text-align:right">${j.net!=null?iftaInt(j.net):'—'}</td><td style="text-align:right">${j.rate!=null?'$'+j.rate.toFixed(4):'—'}</td><td style="text-align:right">${j.surTax?iftaMoney(j.surTax):'—'}</td><td style="text-align:right">${j.totalTax!=null?iftaMoney(j.totalTax):(j.tax!=null?iftaMoney(j.tax):'—')}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <details><summary style="font-size:13px;font-weight:600;cursor:pointer;color:var(--navy)">Fuel purchases (${c.receipts.length})</summary>
+      <div style="overflow-x:auto;margin-top:6px"><table class="rate-table" style="min-width:600px">
+        <thead><tr><th>Date</th><th>Truck</th><th>Site</th><th>St</th><th style="text-align:right">Gal</th><th style="text-align:right">$</th><th>Source</th></tr></thead>
+        <tbody>${c.receipts.map(x=>`<tr><td>${iftaEsc(x.date)}</td><td>${x.truck?'#'+iftaEsc(x.truck):''}</td><td>${iftaEsc(x.site)}</td><td>${iftaEsc(x.state||x.rawState||'—')}</td><td style="text-align:right">${x.gal?iftaGal(x.gal):'—'}</td><td style="text-align:right">${x.total?iftaMoney(x.total):'—'}</td><td>${iftaEsc(x.source)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </details>
+    ${c.flags.length?`<div style="margin-top:0.6rem;font-size:12px;color:var(--amber)">${c.flags.length} open item(s) when saved.</div>`:''}
+    <div class="btn-row" style="margin-top:1rem;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn primary" onclick="iftaReportExport('${r.id}','pdf')">⬇ PDF</button>
+      <button class="btn" onclick="iftaReportExport('${r.id}','csv')">⬇ CSV</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+
+async function iftaReportExport(id, kind){
+  try {
+    const r = await iftaGetReport(id);
+    const s = r.snapshot || {};
+    const meta = Object.assign({}, s.meta, { savedAt: r.created_at, savedBy: r.created_by, notes: r.notes, ratesSource: s.rates_meta && s.rates_meta.source });
+    if (kind === 'pdf') exportIftaPDF(s.calc, meta); else exportIftaCSV(s.calc, meta);
+  } catch(e) { showToast('Could not export report'); }
+}
+
+async function deleteIftaReport(id){
+  if (!confirm('Delete this saved IFTA report? This can\'t be undone.\n\nKeep it if it was filed. IFTA records must be kept 4 years.')) return;
+  try { await sb('kmt_ifta_reports?id=eq.' + encodeURIComponent(id), 'DELETE'); showToast('Report deleted'); loadIftaReports(); }
+  catch(e) { showToast('Could not delete report'); }
+}
+
+// ── Exports (live view, or a saved snapshot when c/meta are passed) ──
+function iftaExportMeta(meta){
+  if (meta) return meta;
+  const m = iftaCurrentMeta();
+  const rm = iftaQuarter && iftaQuarter.rates && iftaQuarter.rates._meta;
+  return Object.assign(m, { ratesSource: rm ? rm.source : null });
+}
+
+function exportIftaCSV(cIn, metaIn){
+  const c = cIn || iftaLastCalc || computeIfta();
+  const meta = iftaExportMeta(metaIn);
   if (!c.receipts.length && !c.juris.length) { showToast('Nothing to export'); return; }
-  const { label, start, end } = iftaQuarterRange();
   const q = v => `"${String(v==null?'':v).replace(/"/g,'""')}"`;
   const lines = [];
-  lines.push([q('Kentmorr Marine Transport — IFTA Quarterly Fuel Report')].join(','));
-  lines.push([q('Quarter'), q(label), q(`${start} to ${end}`)].join(','));
+  lines.push(q('Kentmorr Marine Transport — IFTA Quarterly Fuel Report'));
+  lines.push([q('Quarter'), q(meta.label), q(`${meta.start} to ${meta.end}`)].join(','));
+  if (meta.savedAt) lines.push([q('Saved report'), q(new Date(meta.savedAt).toLocaleString()), q(meta.savedBy||''), q(meta.notes||'')].join(','));
   lines.push([q('Fuel type'), q(c.fuelType)].join(','));
   lines.push([q('Trucks'), q(c.truckSel ? '#'+c.truckSel : 'All')].join(','));
+  lines.push([q('Tax rates'), q(meta.ratesSource || 'entered by hand')].join(','));
   lines.push([q('Total gallons'), c.totalGal.toFixed(1)].join(','));
   lines.push([q('Total ELD miles'), c.totalMiles].join(','));
   lines.push([q('Fleet MPG'), c.mpg ? c.mpg.toFixed(2) : ''].join(','));
   lines.push('');
-  lines.push(['State','ELD Miles','Taxable Gal','Tax-Paid Gal','Net Gal','Rate $/gal','Tax Due/(Credit)'].map(q).join(','));
-  c.juris.forEach(j => lines.push([j.st, j.miles, j.taxable??'', j.paid, j.net??'', j.rate??'', j.tax??''].map(q).join(',')));
-  lines.push(['TOTAL', c.tot.miles, c.mpg?c.tot.taxable:'', c.tot.paid, c.mpg?c.tot.net:'', '', c.tot.tax??''].map(q).join(','));
+  lines.push(['State','ELD Miles','Taxable Gal','Tax-Paid Gal','Net Gal','Rate $/gal','Tax','Surcharge $/gal','Surcharge','Total Due/(Credit)'].map(q).join(','));
+  c.juris.forEach(j => lines.push([j.st, j.miles, j.taxable??'', j.paid, j.net??'', j.rate??'', j.tax??'', j.sur??'', j.surTax??'', j.totalTax??j.tax??''].map(q).join(',')));
+  lines.push(['TOTAL', c.tot.miles, c.mpg?c.tot.taxable:'', c.tot.paid, c.mpg?c.tot.net:'', '', '', '', c.tot.surTax||'', c.tot.tax??''].map(q).join(','));
   lines.push('');
   lines.push(['Date','Truck','Driver','Customer','Fuel Site','State','Gallons','$ Total','$/gal','Source','Issues'].map(q).join(','));
-  c.receipts.forEach(r => lines.push([r.date, r.truck, r.driver, r.customer, r.site, r.state||r.rawState, r.gal||'', r.total??'', r.ppg?r.ppg.toFixed(3):'', r.source, r.issues.join('; ')].map(q).join(',')));
+  c.receipts.forEach(r => lines.push([r.date, r.truck, r.driver, r.customer, r.site, r.state||r.rawState, r.gal||'', r.total??'', r.ppg?r.ppg.toFixed(3):'', r.source, (r.issues||[]).join('; ')].map(q).join(',')));
   if (c.flags.length) {
     lines.push('');
     lines.push(q('Check before filing'));
@@ -7984,16 +8312,17 @@ function exportIftaCSV(){
   }
   const a = document.createElement('a');
   a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(lines.join('\n'));
-  a.download = `KMT_IFTA_${iftaQuarter.id}_${c.fuelType}${c.truckSel?'_'+c.truckSel:''}.csv`;
+  a.download = `KMT_IFTA_${meta.quarter_id}_${c.fuelType}${c.truckSel?'_'+c.truckSel:''}${meta.savedAt?'_saved':''}.csv`;
   a.click();
   showToast('IFTA CSV exported ✓');
 }
 
-function exportIftaPDF(){
+function exportIftaPDF(cIn, metaIn){
   if (!window.jspdf || !window.jspdf.jsPDF) { showToast('PDF library still loading — try again'); return; }
-  const c = iftaLastCalc || computeIfta();
+  const c = cIn || iftaLastCalc || computeIfta();
+  const meta = iftaExportMeta(metaIn);
   if (!c.receipts.length && !c.juris.length) { showToast('Nothing to export'); return; }
-  const { label, start, end, due } = iftaQuarterRange();
+  const due = new Date(meta.due);
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'pt', format:'letter' });
   const PW = 612, PH = 792, M = 36, W = PW - 2*M;
@@ -8006,9 +8335,9 @@ function exportIftaPDF(){
     doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(15);
     doc.text('Kentmorr Marine Transport', M+44, 28);
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(200,208,220);
-    doc.text(`IFTA Quarterly Fuel Report — ${label} — ${c.fuelType}${c.truckSel?' — Truck #'+c.truckSel:''}`, M+44, 44);
+    doc.text(`IFTA Quarterly Fuel Report - ${meta.label} - ${c.fuelType}${c.truckSel?' - Truck #'+c.truckSel:''}`, M+44, 44);
     doc.setFontSize(8);
-    doc.text('Generated '+new Date().toLocaleDateString(), PW-M, 34, {align:'right'});
+    doc.text(meta.savedAt ? 'Saved '+new Date(meta.savedAt).toLocaleDateString()+(meta.savedBy?' by '+meta.savedBy:'') : 'Generated '+new Date().toLocaleDateString(), PW-M, 34, {align:'right'});
     y = 76;
   }
   function need(h){ if (y + h > PH - M) { doc.addPage(); header(); return true; } return false; }
@@ -8050,36 +8379,36 @@ function exportIftaPDF(){
 
   header();
 
-  // Summary block
   doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(30,30,28);
   const summary = [
-    ['Reporting period', `${start} to ${end}  (due ${due.toLocaleDateString('en-US')})`],
+    ['Reporting period', `${meta.start} to ${meta.end}  (due ${due.toLocaleDateString('en-US')})`],
     ['Total ELD miles', c.totalMiles ? iftaInt(c.totalMiles) : 'not entered'],
     [`Total ${c.fuelType.toLowerCase()} gallons`, iftaGal(c.totalGal) + `  (home tank ${iftaGal(c.yardGal)})`],
-    ['Fleet MPG', c.mpg ? c.mpg.toFixed(2) : '—'],
-    ['Net tax due / (credit)', c.tot.tax!==null ? iftaMoney(c.tot.tax)+'  (before surcharges & interest)' : (c.mpg ? iftaInt(c.tot.net)+' net gallons' : '—')]
+    ['Fleet MPG', c.mpg ? c.mpg.toFixed(2) : '-'],
+    ['Tax rates', meta.ratesSource || 'entered by hand'],
+    ['Net tax due / (credit)', c.tot.tax!==null ? iftaMoney(c.tot.tax)+(c.tot.surTax?'  (incl. '+iftaMoney(c.tot.surTax)+' surcharge, before interest)':'  (before interest)') : (c.mpg ? iftaInt(c.tot.net)+' net gallons' : '-')]
   ];
-  summary.forEach(([k,v]) => { doc.setFont('helvetica','bold'); doc.text(k, M, y); doc.setFont('helvetica','normal'); doc.text(v, M+140, y); y += 14; });
+  if (meta.notes) summary.push(['Note', meta.notes]);
+  summary.forEach(([k,v]) => { doc.setFont('helvetica','bold'); doc.text(k, M, y); doc.setFont('helvetica','normal'); doc.text(doc.splitTextToSize(String(v), W-140)[0], M+140, y); y += 14; });
   y += 8;
 
   title('Jurisdiction Worksheet');
   table(
-    [{h:'State',w:70},{h:'ELD Miles',w:75,r:1},{h:'Taxable Gal',w:75,r:1},{h:'Tax-Paid Gal',w:80,r:1},{h:'Net Gal',w:70,r:1},{h:'Rate',w:65,r:1},{h:'Tax / (Credit)',w:105,r:1}],
-    c.juris.map(j => ({ cells:[j.st, iftaInt(j.miles), j.taxable!==null?iftaInt(j.taxable):'—', iftaInt(j.paid), j.net!==null?iftaInt(j.net):'—', j.rate!==null?'$'+j.rate.toFixed(4):'—', j.tax!==null?iftaMoney(j.tax):'—'] })),
-    { cells:['TOTAL', iftaInt(c.tot.miles), c.mpg?iftaInt(c.tot.taxable):'—', iftaInt(c.tot.paid), c.mpg?iftaInt(c.tot.net):'—', '', c.tot.tax!==null?iftaMoney(c.tot.tax):'—'] }
+    [{h:'State',w:46},{h:'Miles',w:62,r:1},{h:'Taxable Gal',w:68,r:1},{h:'Tax-Paid Gal',w:72,r:1},{h:'Net Gal',w:56,r:1},{h:'Rate',w:58,r:1},{h:'Surcharge',w:78,r:1},{h:'Total Due',w:100,r:1}],
+    c.juris.map(j => ({ cells:[j.st, iftaInt(j.miles), j.taxable!==null?iftaInt(j.taxable):'-', iftaInt(j.paid), j.net!==null?iftaInt(j.net):'-', j.rate!==null?'$'+j.rate.toFixed(4):'-', j.surTax?iftaMoney(j.surTax):'-', (j.totalTax??j.tax)!=null?iftaMoney(j.totalTax??j.tax):'-'] })),
+    { cells:['TOTAL', iftaInt(c.tot.miles), c.mpg?iftaInt(c.tot.taxable):'-', iftaInt(c.tot.paid), c.mpg?iftaInt(c.tot.net):'-', '', c.tot.surTax?iftaMoney(c.tot.surTax):'', c.tot.tax!==null?iftaMoney(c.tot.tax):'-'] }
   );
 
   title(`Fuel Purchases (${c.receipts.length})`);
   table(
     [{h:'Date',w:56},{h:'Truck',w:38},{h:'Driver',w:68},{h:'Fuel Site',w:118},{h:'St',w:26},{h:'Gallons',w:54,r:1},{h:'$ Total',w:62,r:1},{h:'$/gal',w:46,r:1},{h:'Source',w:72}],
-    c.receipts.map(r => ({ warn: r.issues.length>0, cells:[r.date, r.truck?'#'+r.truck:'', r.driver, r.site||'—', (r.state||r.rawState||'—')+(r.assumedMD?'*':''), r.gal?iftaGal(r.gal):'—', r.total?iftaMoney(r.total):'—', r.ppg?'$'+r.ppg.toFixed(3):'—', r.source] })),
+    c.receipts.map(r => ({ warn: (r.issues||[]).length>0, cells:[r.date, r.truck?'#'+r.truck:'', r.driver, r.site||'-', (r.state||r.rawState||'-')+(r.assumedMD?'*':''), r.gal?iftaGal(r.gal):'-', r.total?iftaMoney(r.total):'-', r.ppg?'$'+r.ppg.toFixed(3):'-', r.source] })),
     { cells:['TOTAL','','','','', iftaGal(c.totalGal), iftaMoney(c.retail$), '', ''] }
   );
   if (c.receipts.some(r=>r.assumedMD)) { doc.setFontSize(7.5); doc.setTextColor(...GRAY); doc.text('* Home tank entry with no state recorded, counted as MD.', M, y-2); y += 10; }
 
   if (c.flags.length) {
     title(`Check Before Filing (${c.flags.length})`);
-    doc.setFont('helvetica','normal'); doc.setFontSize(8.5); doc.setTextColor(...AMBER);
     c.flags.forEach(f => {
       const ls = doc.splitTextToSize('•  ' + f.msg.replace(/ · /g,' - '), W);
       need(ls.length*11 + 2);
@@ -8094,7 +8423,7 @@ function exportIftaPDF(){
     doc.text(`Page ${i} of ${pages}`, PW-M, PH-18, {align:'right'});
     doc.text('Keep original receipts and bulk delivery invoices with this report for 4 years.', M, PH-18);
   }
-  doc.save(`KMT_IFTA_${iftaQuarter.id}_${c.fuelType}${c.truckSel?'_'+c.truckSel:''}.pdf`);
+  doc.save(`KMT_IFTA_${meta.quarter_id}_${c.fuelType}${c.truckSel?'_'+c.truckSel:''}${meta.savedAt?'_saved':''}.pdf`);
   showToast('IFTA PDF exported ✓');
 }
 
