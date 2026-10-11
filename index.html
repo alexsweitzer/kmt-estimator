@@ -4315,7 +4315,41 @@ function setRouteMilesStatus(html, color){
   if (el) { el.innerHTML = html; el.style.color = color || 'var(--text-muted)'; }
 }
 
+// Google Routes API (replaces the legacy Directions API, which newer Google projects can't enable)
+function gmapsKey(){
+  try { return localStorage.getItem(GMAPS_KEY_STORAGE) || 'AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g'; }
+  catch(e) { return 'AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g'; }
+}
+function routesWaypoint(w){
+  return typeof w === 'string' ? { address: w } : { location: { latLng: { latitude: w.lat, longitude: w.lng } } };
+}
+async function googleComputeRoute(origin, destination, fieldMask, intermediates){
+  const body = { origin: routesWaypoint(origin), destination: routesWaypoint(destination), travelMode: 'DRIVE', units: 'IMPERIAL' };
+  if (intermediates && intermediates.length) body.intermediates = intermediates.map(w => Object.assign(routesWaypoint(w), { via: true }));
+  const r = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': gmapsKey(), 'X-Goog-FieldMask': fieldMask },
+    body: JSON.stringify(body)
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = (d.error && d.error.message) || ('HTTP ' + r.status);
+    throw new Error((r.status === 403 ? 'REQUEST_DENIED: ' : '') + msg);
+  }
+  const route = (d.routes || [])[0];
+  if (!route) throw new Error('No route found');
+  return route;
+}
+
 async function driveMiles(origin, destination){
+  const route = await googleComputeRoute(origin, destination, 'routes.distanceMeters,routes.legs.startLocation,routes.legs.endLocation');
+  const legs = route.legs || [];
+  const ll = p => ({ lat: p.latLng.latitude, lng: p.latLng.longitude });
+  return { miles: Math.round((route.distanceMeters || 0) / 1609.344 * 10) / 10,
+           start: ll(legs[0].startLocation), end: ll(legs[legs.length-1].endLocation) };
+}
+
+async function driveMilesLegacy(origin, destination){
   const res = await estDirections.route({ origin, destination, travelMode: google.maps.TravelMode.DRIVING });
   const legs = res.routes[0].legs;
   const meters = legs.reduce((s, l) => s + (l.distance ? l.distance.value : 0), 0);
@@ -4324,42 +4358,78 @@ async function driveMiles(origin, destination){
            start: ll(legs[0].start_location), end: ll(legs[legs.length-1].end_location) };
 }
 
+// HERE fallback (same key as the toll estimate) when Google Directions isn't available
+let hereGeoCache = {};
+async function hereGeocode(addr, key){
+  if (hereGeoCache[addr]) return hereGeoCache[addr];
+  const r = await fetch('https://geocode.search.hereapi.com/v1/geocode?limit=1&in=countryCode:USA,CAN&q=' +
+    encodeURIComponent(addr) + '&apiKey=' + encodeURIComponent(key));
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? 'HERE API key was rejected' : 'HERE geocode error ' + r.status);
+  const it = (d.items || [])[0];
+  if (!it || !it.position) throw new Error('HERE could not find "' + addr + '"');
+  return (hereGeoCache[addr] = { lat: it.position.lat, lng: it.position.lng });
+}
+async function hereMiles(a, b, key){
+  const fmtP = p => p.lat.toFixed(6) + ',' + p.lng.toFixed(6);
+  const r = await fetch('https://router.hereapi.com/v8/routes?transportMode=truck&return=summary&origin=' + fmtP(a) +
+    '&destination=' + fmtP(b) + '&apiKey=' + encodeURIComponent(key));
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.title || 'HERE routing error ' + r.status);
+  const route = (d.routes || [])[0];
+  if (!route) throw new Error('HERE found no truck route');
+  const meters = (route.sections || []).reduce((s, x) => s + ((x.summary && x.summary.length) || 0), 0);
+  return { miles: Math.round(meters / 1609.344 * 10) / 10, start: a, end: b };
+}
+async function routeLegsHere(pickup, drop, key){
+  const [base, pu, dr] = await Promise.all([hereGeocode(KMT_BASE_ADDRESS, key), hereGeocode(pickup, key), hereGeocode(drop, key)]);
+  return Promise.all([hereMiles(base, pu, key), hereMiles(pu, dr, key), hereMiles(dr, base, key)]);
+}
+async function routeLegsGoogle(pickup, drop){
+  return Promise.all([
+    driveMiles(KMT_BASE_ADDRESS, pickup),
+    driveMiles(pickup, drop),
+    driveMiles(drop, KMT_BASE_ADDRESS)
+  ]);
+}
+
 async function estimateRouteMiles(manual){
   const pickup = estAddress('pickup'), drop = estAddress('drop');
   if (!pickup || !drop) {
     if (manual) setRouteMilesStatus('Enter a street + city/ZIP for both pickup and drop first.', 'var(--amber)');
     return;
   }
-  if (!(window.google && google.maps && google.maps.DirectionsService)) {
-    setRouteMilesStatus('Google Maps is still loading. Try again in a moment.', 'var(--amber)');
-    return;
-  }
-  if (!estDirections) estDirections = new google.maps.DirectionsService();
+  const hereKey = (rates && rates.hereApiKey) || '';
   const seq = ++routeMilesSeq;
   setRouteMilesStatus('<span class="spinner" style="width:12px;height:12px"></span>Calculating road miles…');
-  try {
-    const [rOut, rTrip, rBack] = await Promise.all([
-      driveMiles(KMT_BASE_ADDRESS, pickup),
-      driveMiles(pickup, drop),
-      driveMiles(drop, KMT_BASE_ADDRESS)
-    ]);
-    if (seq !== routeMilesSeq) return;   // a newer lookup superseded this one
-    const dhOut = rOut.miles, trip = rTrip.miles, dhBack = rBack.miles;
-    lastRouteCoords = { base: rOut.start, pickup: rTrip.start, drop: rTrip.end };
-    estimateTolls(false);
-    document.getElementById('deadheadOut').value = dhOut;
-    document.getElementById('tripMiles').value = trip;
-    document.getElementById('deadheadBack').value = dhBack;
-    calculate();
-    setRouteMilesStatus('✓ Estimated: <b>' + dhOut + '</b> mi deadhead out · <b>' + trip + '</b> mi loaded · <b>' + dhBack +
-      '</b> mi deadhead back. Google driving distance; adjust for permitted routing if needed.', 'var(--green)');
-  } catch(e) {
-    if (seq !== routeMilesSeq) return;
-    const msg = String((e && (e.code || e.message)) || e);
-    setRouteMilesStatus(/REQUEST_DENIED/.test(msg)
-      ? 'Could not get miles: the <b>Directions API</b> isn\'t enabled on the Google Maps key.'
-      : 'Could not route one of those addresses (' + msg.slice(0,60) + '). Check them or enter miles by hand.', 'var(--red)');
+  let legs = null, source = '', googleErr = '';
+  try { legs = await routeLegsGoogle(pickup, drop); source = 'Google driving distance'; }
+  catch(e) { googleErr = String((e && (e.code || e.message)) || e); }
+  if (!legs && hereKey) {
+    try { legs = await routeLegsHere(pickup, drop, hereKey); source = 'HERE truck route'; }
+    catch(e) {
+      if (seq !== routeMilesSeq) return;
+      setRouteMilesStatus('Could not get miles: ' + String(e.message || e).replace(/[<>&]/g,'') + '. Check the addresses or enter miles by hand.', 'var(--red)');
+      return;
+    }
   }
+  if (seq !== routeMilesSeq) return;   // a newer lookup superseded this one
+  if (!legs) {
+    setRouteMilesStatus(/REQUEST_DENIED/.test(googleErr)
+      ? 'Could not get miles: the Google key doesn\'t allow the <b>Routes API</b>. Enable it in Google Cloud (and add it to the key\'s API restrictions), or add a HERE API key under Admin → Rates.'
+      : 'Could not route one of those addresses (' + googleErr.slice(0,60) + '). Check them or enter miles by hand.', 'var(--red)');
+    return;
+  }
+  const [rOut, rTrip, rBack] = legs;
+  const dhOut = rOut.miles, trip = rTrip.miles, dhBack = rBack.miles;
+  lastRouteCoords = { base: rOut.start, pickup: rTrip.start, drop: rTrip.end };
+  estimateTolls(false);
+  document.getElementById('deadheadOut').value = dhOut;
+  document.getElementById('tripMiles').value = trip;
+  document.getElementById('deadheadBack').value = dhBack;
+  calculate();
+  setRouteMilesStatus('✓ Estimated: <b>' + dhOut + '</b> mi deadhead out · <b>' + trip + '</b> mi loaded · <b>' + dhBack +
+    '</b> mi deadhead back. ' + source + '; adjust for permitted routing if needed.', 'var(--green)');
 }
 
 // ══════════════════════════════════════════════
@@ -7082,16 +7152,9 @@ function undoRoutePoint(){
 async function traceRoads(points){
   const origin = points[0];
   const destination = points[points.length - 1];
-  const waypoints = points.slice(1, -1).map(p => ({ location: p, stopover: false }));
-  const res = await directionsService.route({
-    origin, destination, waypoints,
-    travelMode: google.maps.TravelMode.DRIVING,
-  });
-  const path = [];
-  res.routes[0].legs.forEach(leg => leg.steps.forEach(step => {
-    step.path.forEach(pt => path.push({ lat: pt.lat(), lng: pt.lng() }));
-  }));
-  return path;
+  const route = await googleComputeRoute(origin, destination, 'routes.polyline.encodedPolyline', points.slice(1, -1));
+  return google.maps.geometry.encoding.decodePath(route.polyline.encodedPolyline)
+    .map(pt => ({ lat: pt.lat(), lng: pt.lng() }));
 }
 
 async function refreshDraft(){
@@ -7109,7 +7172,7 @@ async function refreshDraft(){
     rtDraftPath = rtPoints.slice();
     dashed = true;
     setHint('<b style="color:var(--red)">Could not follow the road</b> — drawing straight segments. ' +
-            'This usually means the <b>Directions API</b> isn\'t enabled on your Google Maps key.');
+            'This usually means the <b>Routes API</b> isn\'t enabled on your Google Maps key.');
   }
   drawDraft(dashed);
   if (!dashed){
