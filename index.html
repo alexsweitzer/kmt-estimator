@@ -464,15 +464,21 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <div class="card-title">Route & Miles</div>
     <div class="form-grid">
       <div class="field full"><label>Pickup — Location Name</label><div style="position:relative"><input type="text" id="pickup-name" placeholder="e.g. Kentmorr Marina or 123 Main St" autocomplete="off" oninput="gmapsAutocomplete('pickup',this.value)"><div id="pickup-suggestions" class="gmaps-dropdown"></div></div></div>
-      <div class="field full"><label>Pickup — Street Address</label><div style="position:relative"><input type="text" id="pickup-street" placeholder="e.g. 910 Kentmorr Rd" autocomplete="off" oninput="gmapsAutocomplete('pickup',this.value,true)"><div id="pickup-street-suggestions" class="gmaps-dropdown"></div></div></div>
-      <div class="field"><label>Pickup — City</label><input type="text" id="pickup-city" placeholder="e.g. Stevensville"></div>
-      <div class="field"><label>Pickup — State</label><input type="text" id="pickup-state" placeholder="e.g. MD" maxlength="2" style="text-transform:uppercase"></div>
-      <div class="field"><label>Pickup — ZIP</label><input type="text" id="pickup-zip" placeholder="e.g. 21666" maxlength="10"></div>
+      <div class="field full"><label>Pickup — Street Address</label><div style="position:relative"><input type="text" id="pickup-street" onchange="scheduleRouteMiles()" placeholder="e.g. 910 Kentmorr Rd" autocomplete="off" oninput="gmapsAutocomplete('pickup',this.value,true)"><div id="pickup-street-suggestions" class="gmaps-dropdown"></div></div></div>
+      <div class="field"><label>Pickup — City</label><input type="text" id="pickup-city" onchange="scheduleRouteMiles()" placeholder="e.g. Stevensville"></div>
+      <div class="field"><label>Pickup — State</label><input type="text" id="pickup-state" onchange="scheduleRouteMiles()" placeholder="e.g. MD" maxlength="2" style="text-transform:uppercase"></div>
+      <div class="field"><label>Pickup — ZIP</label><input type="text" id="pickup-zip" onchange="scheduleRouteMiles()" placeholder="e.g. 21666" maxlength="10"></div>
       <div class="field full"><label>Drop — Location Name</label><div style="position:relative"><input type="text" id="drop-name" placeholder="e.g. Solomons Island Marina or 123 Main St" autocomplete="off" oninput="gmapsAutocomplete('drop',this.value)"><div id="drop-suggestions" class="gmaps-dropdown"></div></div></div>
-      <div class="field full"><label>Drop — Street Address</label><div style="position:relative"><input type="text" id="drop-street" placeholder="e.g. 123 Main St" autocomplete="off" oninput="gmapsAutocomplete('drop',this.value,true)"><div id="drop-street-suggestions" class="gmaps-dropdown"></div></div></div>
-      <div class="field"><label>Drop — City</label><input type="text" id="drop-city" placeholder="e.g. Solomons"></div>
-      <div class="field"><label>Drop — State</label><input type="text" id="drop-state" placeholder="e.g. MD" maxlength="2" style="text-transform:uppercase"></div>
-      <div class="field"><label>Drop — ZIP</label><input type="text" id="drop-zip" placeholder="e.g. 20688" maxlength="10"></div>
+      <div class="field full"><label>Drop — Street Address</label><div style="position:relative"><input type="text" id="drop-street" onchange="scheduleRouteMiles()" placeholder="e.g. 123 Main St" autocomplete="off" oninput="gmapsAutocomplete('drop',this.value,true)"><div id="drop-street-suggestions" class="gmaps-dropdown"></div></div></div>
+      <div class="field"><label>Drop — City</label><input type="text" id="drop-city" onchange="scheduleRouteMiles()" placeholder="e.g. Solomons"></div>
+      <div class="field"><label>Drop — State</label><input type="text" id="drop-state" onchange="scheduleRouteMiles()" placeholder="e.g. MD" maxlength="2" style="text-transform:uppercase"></div>
+      <div class="field"><label>Drop — ZIP</label><input type="text" id="drop-zip" onchange="scheduleRouteMiles()" placeholder="e.g. 20688" maxlength="10"></div>
+      <div class="field full">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--gray-50);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px">
+          <button type="button" class="btn sm primary" onclick="estimateRouteMiles(true)">🧭 Estimate Miles</button>
+          <span id="route-miles-status" style="font-size:12px;color:var(--text-muted)">Miles fill in automatically once pickup and drop addresses are entered. Base: 910 Kentmorr Rd, Stevensville, MD.</span>
+        </div>
+      </div>
 
     </div>
   </div>
@@ -492,6 +498,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="field"><label>Overnight Stays</label><input type="number" id="overnights" value="0" oninput="calculate()"></div>
       <div class="field"><label>Tolls Outbound ($)</label><input type="number" step="0.01" id="tollsOut" value="0" oninput="calculate()"></div>
       <div class="field"><label>Tolls Return ($)</label><input type="number" step="0.01" id="tollsBack" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Toll Axles (truck + trailer)</label><input type="number" id="tollAxles" value="4" min="2" max="9" onchange="estimateTolls(true)"></div>
+      <div class="field"><label>Toll Payment</label>
+        <select id="tollPay" onchange="estimateTolls(true)"><option value="transponder" selected>E-ZPass / transponder</option><option value="cash">Cash / toll-by-plate</option></select>
+      </div>
+      <div class="field full"><div id="toll-status" style="font-size:12px;color:var(--text-muted)">Tolls estimate automatically with the miles (needs a HERE API key under Admin → Rates).</div></div>
       <div class="field"><label>Special/OSOW Tolls ($)</label><input type="number" step="0.01" id="specialTolls" value="0" oninput="calculate()"></div>
       <div class="field"><label>Fuel & Trip Permits</label><input type="number" id="permitStates" value="0" min="0" oninput="calculate()"></div>
       <div class="field"><label>Pilot Car Count</label><input type="number" id="pilotCount" value="0" oninput="calculate()"></div>
@@ -668,6 +679,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="field"><label>Pilot Beam Threshold (ft)</label><input type="number" step="0.1" id="r_pilotBeamThreshold" value="12.5" oninput="saveRates()"></div>
       <div class="field"><label>Customer Trailer Discount</label><input type="number" step="0.01" id="r_trailerDiscount" value="0.20" oninput="saveRates()"></div>
       <div class="field"><label>Permit Fee per State ($)</label><input type="number" step="0.01" id="r_permitFee" value="45.00" oninput="saveRates()"></div>
+      <div class="field full"><label>HERE API Key (truck toll estimates)</label><input type="text" id="r_hereApiKey" placeholder="Paste key from platform.here.com" autocomplete="off" oninput="saveRates()"></div>
     </div>
   </div>
   <div class="card">
@@ -1904,7 +1916,7 @@ function seaDefaultRates(){
   };
 }
 function defaultRates(){
-  return {dieselPrice:5.5,mpgLoaded:5.0,mpgEmpty:8.0,fuelSurchargeRate:1.375,fuelSurchargeWeight:20000,loadFee:125,unloadFee:125,overnightFee:200,deadheadRate:1.0,pilotRate:3.0,pilotBeamThreshold:12.5,trailerDiscount:0.20,permitFee:45.00,driverPay:0.25,driverPayPilot:0.25,maint:0.15,ins:0.16,truck:0.09,km:0.15,sms:0.05,osowOverrides:{},sea:seaDefaultRates()};
+  return {dieselPrice:5.5,mpgLoaded:5.0,mpgEmpty:8.0,fuelSurchargeRate:1.375,fuelSurchargeWeight:20000,loadFee:125,unloadFee:125,overnightFee:200,deadheadRate:1.0,pilotRate:3.0,pilotBeamThreshold:12.5,trailerDiscount:0.20,permitFee:45.00,driverPay:0.25,driverPayPilot:0.25,maint:0.15,ins:0.16,truck:0.09,km:0.15,sms:0.05,hereApiKey:'',osowOverrides:{},sea:seaDefaultRates()};
 }
 async function loadRatesFromDB(){
   try{const rows=await sb('kmt_rates?select=*&limit=1');if(rows.length){rates={...defaultRates(),...rows[0].data};if(!rates.osowOverrides)rates.osowOverrides={};if(!rates.sea)rates.sea=seaDefaultRates();}}catch(e){}
@@ -1916,7 +1928,7 @@ function applyRatesToUI(){
   set('r_fuelSurchargeRate',r.fuelSurchargeRate);set('r_fuelSurchargeWeight',r.fuelSurchargeWeight);
   set('r_loadFee',r.loadFee);set('r_unloadFee',r.unloadFee);set('r_overnightFee',r.overnightFee);
   set('r_deadheadRate',r.deadheadRate);set('r_pilotRate',r.pilotRate);set('r_pilotBeamThreshold',r.pilotBeamThreshold);
-  set('r_trailerDiscount',r.trailerDiscount);set('r_permitFee',r.permitFee||45);set('r_driverPay',r.driverPay);set('r_driverPayPilot',r.driverPayPilot);
+  set('r_trailerDiscount',r.trailerDiscount);set('r_permitFee',r.permitFee||45);set('r_hereApiKey',r.hereApiKey||'');set('r_driverPay',r.driverPay);set('r_driverPayPilot',r.driverPayPilot);
   set('r_maint',r.maint);set('r_ins',r.ins);set('r_truck',r.truck);set('r_km',r.km);set('r_sms',r.sms);
   const ll=document.getElementById('lbl-load');if(ll)ll.textContent=r.loadFee;
   const lu=document.getElementById('lbl-unload');if(lu)lu.textContent=r.unloadFee;
@@ -1926,7 +1938,7 @@ function saveRates(){
   const f=id=>parseFloat(document.getElementById(id).value)||0;
   const prevOverrides=rates.osowOverrides||{};
   const prevSea=rates.sea||seaDefaultRates();
-  rates={dieselPrice:f('r_dieselPrice'),mpgLoaded:f('r_mpgLoaded'),mpgEmpty:f('r_mpgEmpty'),fuelSurchargeRate:f('r_fuelSurchargeRate'),fuelSurchargeWeight:f('r_fuelSurchargeWeight'),loadFee:f('r_loadFee'),unloadFee:f('r_unloadFee'),overnightFee:f('r_overnightFee'),deadheadRate:f('r_deadheadRate'),pilotRate:f('r_pilotRate'),pilotBeamThreshold:f('r_pilotBeamThreshold'),trailerDiscount:f('r_trailerDiscount'),permitFee:f('r_permitFee')||45,driverPay:f('r_driverPay'),driverPayPilot:f('r_driverPayPilot'),maint:f('r_maint'),ins:f('r_ins'),truck:f('r_truck'),km:f('r_km'),sms:f('r_sms'),osowOverrides:prevOverrides,sea:prevSea};
+  rates={dieselPrice:f('r_dieselPrice'),mpgLoaded:f('r_mpgLoaded'),mpgEmpty:f('r_mpgEmpty'),fuelSurchargeRate:f('r_fuelSurchargeRate'),fuelSurchargeWeight:f('r_fuelSurchargeWeight'),loadFee:f('r_loadFee'),unloadFee:f('r_unloadFee'),overnightFee:f('r_overnightFee'),deadheadRate:f('r_deadheadRate'),pilotRate:f('r_pilotRate'),pilotBeamThreshold:f('r_pilotBeamThreshold'),trailerDiscount:f('r_trailerDiscount'),permitFee:f('r_permitFee')||45,driverPay:f('r_driverPay'),driverPayPilot:f('r_driverPayPilot'),maint:f('r_maint'),ins:f('r_ins'),truck:f('r_truck'),km:f('r_km'),sms:f('r_sms'),hereApiKey:((document.getElementById('r_hereApiKey')||{}).value||'').trim(),osowOverrides:prevOverrides,sea:prevSea};
   const ll=document.getElementById('lbl-load');if(ll)ll.textContent=rates.loadFee;
   const lu=document.getElementById('lbl-unload');if(lu)lu.textContent=rates.unloadFee;
   calculate();
@@ -2424,6 +2436,10 @@ async function deleteBid(id){
   try{await sb('kmt_bids?id=eq.'+id,'DELETE');await loadBidsFromDB();showToast('Bid deleted');}catch(e){showToast('Delete failed');}
 }
 function clearForm(){
+  routeMilesSeq++; tollSeq++; lastRouteCoords = null;
+  { const ta = document.getElementById('tollAxles'); if (ta) ta.value = 4; }
+  setTollStatus('Tolls estimate automatically with the miles (needs a HERE API key under Admin → Rates).');
+  setRouteMilesStatus('Miles fill in automatically once pickup and drop addresses are entered. Base: 910 Kentmorr Rd, Stevensville, MD.');
   delete document.getElementById('section-estimator').dataset.editId;
   ['customer','customer-phone','customer-email','boat-year','boat-make','boat-model','loa','beam','weight','height','draft','pickup-name','pickup-street','pickup-city','pickup-state','pickup-zip','drop-name','drop-street','drop-city','drop-state','drop-zip','notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});syncAllFtIn();
   ['tripMiles','deadheadOut','deadheadBack','overnights','tollsOut','tollsBack','specialTolls','permitStates','pilotCount','pilotMiles','customTripPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=0});
@@ -4270,6 +4286,157 @@ function gmapsAutocomplete(prefix, value, isStreet) {
   }, 250);
 }
 
+// ══════════════════════════════════════════════
+// AUTO MILEAGE ESTIMATE (Estimate tab)
+// Deadhead Out  = Kentmorr base → Pickup
+// Trip (loaded) = Pickup → Drop
+// Deadhead Back = Drop → Kentmorr base
+// Uses Google Directions driving distance (same API the Routes tab uses).
+// ══════════════════════════════════════════════
+const KMT_BASE_ADDRESS = '910 Kentmorr Road, Stevensville, MD 21666';
+let routeMilesTimer = null, routeMilesSeq = 0, estDirections = null;
+
+function estAddress(prefix){
+  const v = id => ((document.getElementById(prefix + '-' + id) || {}).value || '').trim();
+  const street = v('street'), city = v('city'), state = v('state').toUpperCase(), zip = v('zip'), name = v('name');
+  const cityLine = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ');
+  if (street && (cityLine || zip)) return [street, cityLine].filter(Boolean).join(', ');
+  if (cityLine && (city || zip)) return [name, cityLine].filter(Boolean).join(', ');
+  return '';   // not enough to route on
+}
+
+function scheduleRouteMiles(delay){
+  clearTimeout(routeMilesTimer);
+  routeMilesTimer = setTimeout(() => estimateRouteMiles(false), delay == null ? 600 : delay);
+}
+
+function setRouteMilesStatus(html, color){
+  const el = document.getElementById('route-miles-status');
+  if (el) { el.innerHTML = html; el.style.color = color || 'var(--text-muted)'; }
+}
+
+async function driveMiles(origin, destination){
+  const res = await estDirections.route({ origin, destination, travelMode: google.maps.TravelMode.DRIVING });
+  const legs = res.routes[0].legs;
+  const meters = legs.reduce((s, l) => s + (l.distance ? l.distance.value : 0), 0);
+  const ll = p => ({ lat: p.lat(), lng: p.lng() });
+  return { miles: Math.round(meters / 1609.344 * 10) / 10,
+           start: ll(legs[0].start_location), end: ll(legs[legs.length-1].end_location) };
+}
+
+async function estimateRouteMiles(manual){
+  const pickup = estAddress('pickup'), drop = estAddress('drop');
+  if (!pickup || !drop) {
+    if (manual) setRouteMilesStatus('Enter a street + city/ZIP for both pickup and drop first.', 'var(--amber)');
+    return;
+  }
+  if (!(window.google && google.maps && google.maps.DirectionsService)) {
+    setRouteMilesStatus('Google Maps is still loading. Try again in a moment.', 'var(--amber)');
+    return;
+  }
+  if (!estDirections) estDirections = new google.maps.DirectionsService();
+  const seq = ++routeMilesSeq;
+  setRouteMilesStatus('<span class="spinner" style="width:12px;height:12px"></span>Calculating road miles…');
+  try {
+    const [rOut, rTrip, rBack] = await Promise.all([
+      driveMiles(KMT_BASE_ADDRESS, pickup),
+      driveMiles(pickup, drop),
+      driveMiles(drop, KMT_BASE_ADDRESS)
+    ]);
+    if (seq !== routeMilesSeq) return;   // a newer lookup superseded this one
+    const dhOut = rOut.miles, trip = rTrip.miles, dhBack = rBack.miles;
+    lastRouteCoords = { base: rOut.start, pickup: rTrip.start, drop: rTrip.end };
+    estimateTolls(false);
+    document.getElementById('deadheadOut').value = dhOut;
+    document.getElementById('tripMiles').value = trip;
+    document.getElementById('deadheadBack').value = dhBack;
+    calculate();
+    setRouteMilesStatus('✓ Estimated: <b>' + dhOut + '</b> mi deadhead out · <b>' + trip + '</b> mi loaded · <b>' + dhBack +
+      '</b> mi deadhead back. Google driving distance; adjust for permitted routing if needed.', 'var(--green)');
+  } catch(e) {
+    if (seq !== routeMilesSeq) return;
+    const msg = String((e && (e.code || e.message)) || e);
+    setRouteMilesStatus(/REQUEST_DENIED/.test(msg)
+      ? 'Could not get miles: the <b>Directions API</b> isn\'t enabled on the Google Maps key.'
+      : 'Could not route one of those addresses (' + msg.slice(0,60) + '). Check them or enter miles by hand.', 'var(--red)');
+  }
+}
+
+// ══════════════════════════════════════════════
+// AUTO TOLL ESTIMATE (HERE Routing v8, truck mode)
+// Outbound = Kentmorr → pickup → drop (deadhead out + loaded)
+// Return   = drop → Kentmorr
+// ══════════════════════════════════════════════
+let lastRouteCoords = null, tollSeq = 0;
+
+function setTollStatus(html, color){
+  const el = document.getElementById('toll-status');
+  if (el) { el.innerHTML = html; el.style.color = color || 'var(--text-muted)'; }
+}
+
+function pickFare(fares, pay){
+  const val = f => { const p = f.convertedPrice || f.price; return p && typeof p.value === 'number' ? p.value : null; };
+  const ok = fares.filter(f => val(f) !== null);
+  if (!ok.length) return 0;
+  const wants = pay === 'transponder' ? ['transponder'] : ['cash','videoToll','bankCard','creditCard'];
+  const match = ok.filter(f => (f.paymentMethods || []).some(m => wants.includes(m)));
+  const pool = match.length ? match : ok;
+  return Math.min(...pool.map(val));
+}
+
+async function hereTolls(points, axles, pay, key){
+  const fmt = p => p.lat.toFixed(6) + ',' + p.lng.toFixed(6);
+  const build = axleParam => {
+    const u = new URLSearchParams({ transportMode:'truck', origin:fmt(points[0]), destination:fmt(points[points.length-1]),
+      return:'summary,tolls', currency:'USD', apiKey:key });
+    points.slice(1,-1).forEach(p => u.append('via', fmt(p)));
+    u.append(axleParam, String(axles));
+    return 'https://router.hereapi.com/v8/routes?' + u.toString();
+  };
+  let res = await fetch(build('vehicle[axleCount]'));
+  if (res.status === 400) res = await fetch(build('truck[axleCount]'));   // older parameter name
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? 'HERE API key was rejected' : (data.title || 'HERE error ' + res.status));
+  const route = (data.routes || [])[0];
+  if (!route) throw new Error('No truck route found');
+  let total = 0, count = 0;
+  (route.sections || []).forEach(sec => (sec.tolls || []).forEach(t => { total += pickFare(t.fares || [], pay); count++; }));
+  return { total: Math.round(total * 100) / 100, count };
+}
+
+async function estimateTolls(manual){
+  const key = (rates && rates.hereApiKey) || '';
+  if (!lastRouteCoords) {
+    if (manual) setTollStatus('Enter pickup and drop addresses first so the route is known.', 'var(--amber)');
+    return;
+  }
+  if (!key) {
+    setTollStatus('Add a HERE API key under Admin → Rates → Trucking to auto-estimate tolls.', 'var(--amber)');
+    return;
+  }
+  const axles = Math.max(2, parseInt((document.getElementById('tollAxles') || {}).value, 10) || 4);
+  const pay = (document.getElementById('tollPay') || {}).value || 'transponder';
+  const c = lastRouteCoords, seq = ++tollSeq;
+  setTollStatus('<span class="spinner" style="width:12px;height:12px"></span>Estimating ' + axles + '-axle tolls…');
+  try {
+    const [out, back] = await Promise.all([
+      hereTolls([c.base, c.pickup, c.drop], axles, pay, key),
+      hereTolls([c.drop, c.base], axles, pay, key)
+    ]);
+    if (seq !== tollSeq) return;
+    document.getElementById('tollsOut').value = out.total.toFixed(2);
+    document.getElementById('tollsBack').value = back.total.toFixed(2);
+    calculate();
+    setTollStatus('✓ ' + axles + '-axle tolls (' + (pay === 'transponder' ? 'E-ZPass' : 'cash/plate') + '): <b>' + fmt(out.total) +
+      '</b> outbound (' + out.count + ' toll' + (out.count === 1 ? '' : 's') + ') · <b>' + fmt(back.total) + '</b> return (' +
+      back.count + '). HERE truck route, which may differ from your permitted route.', 'var(--green)');
+  } catch(e) {
+    if (seq !== tollSeq) return;
+    setTollStatus('Could not estimate tolls: ' + iftaEscapeSafe(String(e.message || e)) + '. Enter them by hand.', 'var(--red)');
+  }
+}
+function iftaEscapeSafe(t){ return t.replace(/[<>&]/g, ''); }
+
 function fillPlace(prefix, placeId, fillMode) {
   // Use PlacesService (same API as autocomplete — no extra API needed)
   const dummyDiv = document.getElementById('gmaps-dummy') || (() => {
@@ -4314,6 +4481,7 @@ function fillPlace(prefix, placeId, fillMode) {
       }
       ['', '-street'].forEach(s => closeDrop(document.getElementById(prefix + s + '-suggestions')));
       showToast('Address filled ✓');
+      if (prefix === 'pickup' || prefix === 'drop') scheduleRouteMiles(50);
     }
   );
 }
