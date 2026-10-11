@@ -1736,6 +1736,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 // ══════════════════════════════════════════════
 // SUPABASE CONFIG (hardcoded — no setup needed)
 // ══════════════════════════════════════════════
+// ── Google Maps API key ── paste the current key from Google Cloud → Credentials here (one place only)
+const GOOGLE_MAPS_KEY = 'AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g';
 const SB_URL = 'https://kdtlhddkthghqllkshbb.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtkdGxoZGRrdGhnaHFsbGtzaGJiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4OTI5NjEsImV4cCI6MjA5NTQ2ODk2MX0.fPsWsMSBgbktKbntFnXubUYW7HoP5OHZPkaMq510-vM';
 
@@ -1871,7 +1873,7 @@ function bootApp(){
   loadDriverRoster();
   registerSW();
   loadGmapsKey();
-  if(!gmapsLoaded) loadGmapsScript('AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g');
+  if(!gmapsLoaded) loadGmapsScript(GOOGLE_MAPS_KEY);
   app.style.display='flex';app.style.flexDirection='column';
   document.getElementById('topbarUser').textContent=currentSession.displayName||currentSession.username;
   document.getElementById('tab-admin').style.display=currentSession.role==='admin'?'':'none';
@@ -4206,9 +4208,9 @@ function saveGmapsKey() {
 }
 
 function loadGmapsKey() {
-  const HARDCODED_KEY = 'AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g';
+  const HARDCODED_KEY = GOOGLE_MAPS_KEY;
   const stored = localStorage.getItem(GMAPS_KEY_STORAGE);
-  const key = stored || HARDCODED_KEY;
+  const key = HARDCODED_KEY;   // stored copies are ignored so a rotated key takes effect everywhere
   const el = document.getElementById('gmapsApiKey');
   if (el) el.value = key;
   if (!gmapsLoaded) loadGmapsScript(key);
@@ -4320,8 +4322,7 @@ function setRouteMilesStatus(html, color){
 
 // Google Routes API (replaces the legacy Directions API, which newer Google projects can't enable)
 function gmapsKey(){
-  try { return localStorage.getItem(GMAPS_KEY_STORAGE) || 'AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g'; }
-  catch(e) { return 'AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g'; }
+  return GOOGLE_MAPS_KEY;
 }
 function routesWaypoint(w){
   return typeof w === 'string' ? { address: w } : { location: { latLng: { latitude: w.lat, longitude: w.lng } } };
