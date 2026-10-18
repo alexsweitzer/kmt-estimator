@@ -2404,12 +2404,189 @@ function viewBid(id){
     </div>
     <div class="btn-row">
       <button class="btn primary" onclick="updateBidStatus('${b.id}');this.closest('.overlay').remove()">Save Status</button>
+      <button class="btn" onclick="printBid('${b.id}','customer')">🖨 Customer Quote</button>
+      <button class="btn" onclick="printBid('${b.id}','internal')">🖨 Internal Sheet</button>
       ${bidType(b)==='truck'?`<button class="btn" onclick="editBid('${b.id}');this.closest('.overlay').remove()">✏️ Edit</button>`:''}
       <button class="btn danger" onclick="if(confirm('Delete this bid?')){deleteBid('${b.id}');this.closest('.overlay').remove()}">🗑 Delete</button>
     </div>
   </div>`;
   document.body.appendChild(ov);
 }
+// ══════════════════════════════════════════════
+// PRINT SAVED BIDS
+// 'customer' = clean quote for the customer (price only, no costs/profit)
+// 'internal' = full job sheet with costs, allocations and profit
+// ══════════════════════════════════════════════
+const KMT_PRINT_INFO = {
+  name: 'Kentmorr Marine Transport LLC',
+  tagline: 'By Land and Sea',
+  address: '910 Kentmorr Road, Stevensville, MD 21666',
+  contact: ''   // e.g. '(410) 000-0000 · office@example.com' — shown under the address when filled in
+};
+function pEsc(v){ return String(v==null?'':v).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function pFtIn(v){ const n=parseFloat(v); if(!n) return null; return (typeof fmtFtIn==='function' && fmtFtIn(n)) || (n+' ft'); }
+function pRow(label, val){ return (val===null||val===undefined||val==='') ? '' : '<tr><th>'+pEsc(label)+'</th><td>'+pEsc(val)+'</td></tr>'; }
+function pTable(title, rows){ const r=rows.join(''); return r ? '<section><h2>'+pEsc(title)+'</h2><table>'+r+'</table></section>' : ''; }
+function pAddr(name, street, city, state, zip, fallback){
+  return [name, street, [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ')].filter(Boolean).join(', ') || fallback || '—';
+}
+function bidQuoteNo(b){ return 'Q-' + String(b.id||'').replace(/-/g,'').slice(0,8).toUpperCase(); }
+
+function bidPrintBody(b, mode){
+  const t = bidType(b), sd = b.sea_data || {};
+  const custName = b.customer || 'Customer';
+  const phone = t==='truck' ? b.customer_phone : sd.phone;
+  const email = t==='truck' ? b.customer_email : sd.email;
+  let out = pTable('Customer', [pRow('Name', custName), pRow('Phone', phone), pRow('Email', email)]);
+  let total = b.trip_price || 0;
+
+  if (t === 'truck') {
+    const pickup = pAddr(b.pickup_name,b.pickup_street,b.pickup_city,b.pickup_state,b.pickup_zip,b.pickup);
+    const drop = pAddr(b.drop_name,b.drop_street,b.drop_city,b.drop_state,b.drop_zip,b.drop_location);
+    out += pTable('Boat', [
+      pRow('Year / Make / Model', [b.boat_year,b.boat_make,b.boat_model].filter(Boolean).join(' ') || b.boat),
+      pRow('Length (LOA)', pFtIn(b.loa)), pRow('Beam', pFtIn(b.beam)),
+      pRow('Weight', b.weight_lbs ? Number(b.weight_lbs).toLocaleString()+' lbs' : null),
+      pRow('Height on Trailer', pFtIn(b.height_ft)), pRow('Draft', pFtIn(b.draft_ft))
+    ]);
+    out += pTable('Transport', [
+      pRow('Service', 'Boat transport by truck and trailer'),
+      pRow('Pickup', pickup), pRow('Delivery', drop),
+      pRow('Loaded Miles', b.trip_miles ? b.trip_miles+' mi' : null),
+      pRow('Trailer', b.customer_trailer==='Y' ? 'Customer-supplied trailer' : null)
+    ]);
+    const incl = [];
+    if (b.chk_load !== false) incl.push('Loading');
+    if (b.chk_unload !== false) incl.push('Unloading');
+    if (b.osow_selections && b.osow_selections.length) incl.push('Oversize permits (' + b.osow_selections.join(', ') + ')');
+    if (b.pilot_count) incl.push(b.pilot_count + ' pilot car' + (b.pilot_count==1?'':'s'));
+    if (b.total_tolls) incl.push('Tolls');
+    if (b.overnights) incl.push(b.overnights + ' overnight' + (b.overnights==1?'':'s'));
+    if (incl.length) out += pTable('Price Includes', [pRow('Included', incl.join(' · '))]);
+
+    if (mode === 'internal') {
+      out += pTable('Trip Detail', [
+        pRow('Deadhead Out / Back', (b.deadhead_out||0)+' / '+(b.deadhead_back||0)+' mi'),
+        pRow('Total Miles', ((+b.trip_miles||0)+(+b.deadhead_out||0)+(+b.deadhead_back||0)).toFixed(1)+' mi'),
+        pRow('Rate', b.rate_per_mile ? '$'+b.rate_per_mile+' / mi' : null),
+        pRow('Overnights', b.overnights||0),
+        pRow('Tolls Out / Back / Special', fmt(b.tolls_out||0)+' / '+fmt(b.tolls_back||0)+' / '+fmt(b.special_tolls||0)),
+        pRow('Pilot Cars / Miles', (b.pilot_count||0)+' / '+(b.pilot_miles||0)+' mi')
+      ]);
+      out += pTable('Costs', [
+        pRow('Fuel', fmt(b.fuel_cost||0)), pRow('Driver Pay', fmt(b.driver_pay||0)),
+        pRow('Tolls', fmt(b.total_tolls||0)),
+        pRow('Fuel & Trip Permits', fmt(b.permits||0)+(b.permit_states?' ('+b.permit_states+' states)':'')),
+        pRow('OSOW Permits', fmt(b.osow_cost||0)+(b.osow_selections&&b.osow_selections.length?' ('+b.osow_selections.join(', ')+')':'')),
+        pRow('Pilot Est.', fmt(b.pilot_est||0)),
+        pRow('Maint / Ins / Vehicle', fmt(b.maint_alloc||0)+' / '+fmt(b.ins_alloc||0)+' / '+fmt(b.vehicle_alloc||0)),
+        pRow('KM / SMS Alloc', fmt(b.km_alloc||0)+' / '+fmt(b.sms_alloc||0)),
+        pRow('Est. Profit', ((b.profit||0)<0?'−':'+')+fmt(Math.abs(b.profit||0)))
+      ]);
+    }
+  } else if (t === 'captain') {
+    const v = sd.vessel || {}, unit = sd.rate_type==='hour' ? 'hr' : 'day';
+    total = sd.total || b.trip_price || 0;
+    out += pTable('Vessel', [
+      pRow('Year / Make / Model', [v.year,v.make,v.model].filter(Boolean).join(' ')),
+      pRow('Vessel Name', v.name), pRow('Length (LOA)', pFtIn(v.loa)), pRow('Power / Sail', v.power_sail)
+    ]);
+    out += pTable('Captain Hire', [
+      pRow('Service', 'Licensed captain hire'),
+      pRow('Pickup', sd.pickup), pRow('Destination', sd.destination),
+      pRow('Rate Basis', sd.rate_type==='hour' ? 'Hourly' : 'Day rate'),
+      pRow(sd.rate_type==='hour' ? 'Hours' : 'Days', sd.qty||0),
+      pRow('Captain', fmt(sd.captain_rate||0)+' / '+unit+' = '+fmt(sd.captain_fee||0)),
+      sd.mates ? pRow('First Mates', sd.mates+' × '+fmt(sd.mate_rate||0)+' / '+unit+' = '+fmt(sd.mate_fee||0)) : ''
+    ]);
+  } else {
+    out += pTable('Tow / Water Transport', [
+      pRow('Service', 'Vessel tow / transport by water'),
+      pRow('Trip Distance', (sd.trip_nm||0)+' nm'),
+      pRow('Estimated Trip Time', sd.trip_time)
+    ]);
+    if (mode === 'internal') {
+      out += pTable('Trip Detail', [
+        pRow('Tow Boat', sd.vessel),
+        pRow('Deadhead Out / Back', (sd.deadhead_out_nm||0)+' / '+(sd.deadhead_back_nm||0)+' nm'),
+        pRow('Trip Rate', sd.rate_per_nm ? '$'+sd.rate_per_nm+' / nm' : null),
+        pRow('Pickup / Delivery Time', (sd.pickup_hrs||0)+' / '+(sd.delivery_hrs||0)+' hrs'),
+        pRow('Estimated Trip Fee', sd.est_fee), pRow('Fuel Cost', sd.fuel_cost),
+        pRow('Captain Pay', sd.captain_pay), pRow('Vessel Pay', sd.vessel_pay), pRow('Gross Profit', sd.gross_profit)
+      ]);
+    }
+  }
+
+  out += '<div class="total"><span>' + (mode==='customer' ? 'Quoted Price' : 'Trip Price') + '</span><span>' + fmt(total) + '</span></div>';
+  if (b.notes) out += '<section><h2>Notes</h2><p class="notes">' + pEsc(b.notes) + '</p></section>';
+  return out;
+}
+
+function printBid(id, mode){
+  const b = bids.find(x => x.id == id); if (!b) return;
+  const logoEl = document.querySelector('.login-logo img') || document.querySelector('.topbar-logo img');   // login logo is the full-color one
+  const logo = logoEl ? logoEl.src : '';
+  const isCust = mode === 'customer';
+  const title = (isCust ? 'Quote ' : 'Job Sheet ') + bidQuoteNo(b) + ' — ' + (b.customer || 'Customer');
+  const meta = BID_TYPE_META[bidType(b)] || {label:''};
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${pEsc(title)}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:#1a2233;margin:0;background:#fff;font-size:13px;line-height:1.4}
+  .page{max-width:760px;margin:0 auto;padding:28px 32px}
+  .bar{position:sticky;top:0;background:#f3f4f6;border-bottom:1px solid #ddd;padding:10px 16px;display:flex;gap:8px;justify-content:center}
+  .bar button{font:inherit;font-size:14px;padding:8px 16px;border-radius:6px;border:1px solid #1b2a4a;background:#1b2a4a;color:#fff;cursor:pointer}
+  .bar button.alt{background:#fff;color:#1b2a4a}
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:3px solid #1b2a4a;padding-bottom:14px;margin-bottom:18px}
+  .co{display:flex;gap:12px;align-items:center}
+  .co img{width:64px;height:64px;object-fit:contain}
+  .co h1{font-size:18px;margin:0;color:#1b2a4a}
+  .co .tag{color:#b8860b;font-weight:600;font-size:12px;letter-spacing:.04em}
+  .co .addr{font-size:12px;color:#555}
+  .doc{text-align:right}
+  .doc .kind{font-size:20px;font-weight:700;color:#1b2a4a;text-transform:uppercase;letter-spacing:.04em}
+  .doc div{font-size:12px;color:#444}
+  .internal-flag{display:inline-block;margin-top:4px;background:#b91c1c;color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.05em}
+  section{margin-bottom:14px;break-inside:avoid}
+  h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#1b2a4a;border-bottom:1px solid #d6dbe4;padding-bottom:4px;margin:0 0 6px}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-weight:500;color:#555;width:38%;padding:4px 8px 4px 0;vertical-align:top}
+  td{padding:4px 0;vertical-align:top}
+  .total{display:flex;justify-content:space-between;align-items:center;background:#1b2a4a;color:#fff;padding:12px 16px;border-radius:6px;font-size:18px;font-weight:700;margin:18px 0;break-inside:avoid}
+  .notes{white-space:pre-wrap;margin:0}
+  .fine{font-size:11px;color:#666;margin-top:18px}
+  .sign{display:flex;gap:24px;margin-top:36px;break-inside:avoid}
+  .sign div{flex:1;border-top:1px solid #333;padding-top:4px;font-size:11px;color:#555}
+  @media print{ .bar{display:none} .page{padding:0} @page{margin:0.6in} .total{-webkit-print-color-adjust:exact;print-color-adjust:exact} .internal-flag{-webkit-print-color-adjust:exact;print-color-adjust:exact} }
+</style></head><body>
+<div class="bar"><button onclick="window.print()">🖨 Print / Save PDF</button><button class="alt" onclick="window.close()">Close</button></div>
+<div class="page">
+  <header>
+    <div class="co">${logo?`<img src="${logo}" alt="">`:''}<div>
+      <h1>${pEsc(KMT_PRINT_INFO.name)}</h1>
+      <div class="tag">${pEsc(KMT_PRINT_INFO.tagline)}</div>
+      <div class="addr">${pEsc(KMT_PRINT_INFO.address)}${KMT_PRINT_INFO.contact?'<br>'+pEsc(KMT_PRINT_INFO.contact):''}</div>
+    </div></div>
+    <div class="doc">
+      <div class="kind">${isCust?'Quote':'Job Sheet'}</div>
+      <div><b>${pEsc(bidQuoteNo(b))}</b></div>
+      <div>Date: ${pEsc(b.bid_date||'—')}</div>
+      <div>${pEsc(meta.label)} service</div>
+      ${isCust?'':`<div>Status: ${pEsc(b.status||'—')}</div><span class="internal-flag">INTERNAL — NOT FOR CUSTOMER</span>`}
+    </div>
+  </header>
+  ${bidPrintBody(b, mode)}
+  ${isCust?`<p class="fine">This quote is based on the boat dimensions, weight and locations listed above. If any of these differ, or route, permit or escort requirements change, the price may be adjusted. Please contact us with any questions.</p>
+  <div class="sign"><div>Customer acceptance (signature)</div><div>Date</div></div>`:`<p class="fine">Printed ${new Date().toLocaleString()} by ${pEsc((currentSession&&currentSession.username)||'')}</p>`}
+</div>
+<script>window.addEventListener('load',function(){setTimeout(function(){window.print()},300)});<\/script>
+</body></html>`;
+  const w = window.open('', '_blank');
+  if (!w) { showToast('Allow pop-ups for this site to print'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
+
 async function updateBidStatus(id){
   const sel=document.getElementById('statusUpd_'+id);if(!sel)return;
   try{await sb('kmt_bids?id=eq.'+id,'PATCH',{status:sel.value});await loadBidsFromDB();showToast('Status updated ✓');}catch(e){showToast('Update failed');}
