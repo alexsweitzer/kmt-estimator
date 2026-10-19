@@ -492,10 +492,14 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
           <label class="chk-label"><input type="checkbox" id="chkUnload" checked onchange="syncChk();calculate()"><span class="chk-box" id="chkUnloadBox"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span> Unload ($<span id="lbl-unload">125</span>)</label>
         </div>
       </div>
-      <div class="field"><label>Trip Miles (loaded)</label><input type="number" step="0.1" id="tripMiles" value="0" oninput="calculate()"></div>
-      <div class="field"><label>Deadhead Out (mi)</label><input type="number" step="0.1" id="deadheadOut" value="0" oninput="calculate()"></div>
-      <div class="field"><label>Deadhead Back (mi)</label><input type="number" step="0.1" id="deadheadBack" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Trip Miles (loaded)</label><input type="number" step="0.1" id="tripMiles" value="0" oninput="hoursFromMiles()"></div>
+      <div class="field"><label>Deadhead Out (mi)</label><input type="number" step="0.1" id="deadheadOut" value="0" oninput="hoursFromMiles()"></div>
+      <div class="field"><label>Deadhead Back (mi)</label><input type="number" step="0.1" id="deadheadBack" value="0" oninput="hoursFromMiles()"></div>
       <div class="field"><label>Overnight Stays</label><input type="number" id="overnights" value="0" oninput="calculate()"></div>
+      <div class="field"><label>Drive Hours (round trip)</label><input type="number" step="0.1" min="0" id="driveHours" value="0" oninput="calculate()" onchange="overnightsFromHours()"></div>
+      <div class="field"><label>Load Hours</label><input type="number" step="0.25" min="0" id="loadHours" value="1" oninput="calculate()"></div>
+      <div class="field"><label>Unload Hours</label><input type="number" step="0.25" min="0" id="unloadHours" value="1" oninput="calculate()"></div>
+      <div class="field full"><div id="hours-status" style="font-size:12px;color:var(--text-muted)">Drive hours come from the route lookup. Editing any mileage re-estimates them at the route's average speed.</div></div>
       <div class="field"><label>Tolls Outbound ($)</label><input type="number" step="0.01" id="tollsOut" value="0" oninput="calculate()"></div>
       <div class="field"><label>Tolls Return ($)</label><input type="number" step="0.01" id="tollsBack" value="0" oninput="calculate()"></div>
       <div class="field"><label>Toll Axles (truck + trailer)</label><input type="number" id="tollAxles" value="4" min="2" max="9" onchange="estimateTolls(true)"></div>
@@ -572,6 +576,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="metric"><div class="m-label">KM Alloc</div><div class="m-value" id="res-km">$0</div></div>
       <div class="metric"><div class="m-label">SMS Alloc</div><div class="m-value" id="res-sms">$0</div></div>
       <div class="metric highlight"><div class="m-label">Est. Profit</div><div class="m-value" id="res-profit">$0</div></div>
+      <div class="metric"><div class="m-label">Total Job Hours</div><div class="m-value" id="res-hours">—</div></div>
+      <div class="metric highlight"><div class="m-label">Revenue / Hour</div><div class="m-value" id="res-revHr">—</div></div>
+      <div class="metric highlight"><div class="m-label">Profit / Hour</div><div class="m-value" id="res-profHr">—</div></div>
     </div>
     <div style="font-size:12px;color:var(--text-muted);margin-top:4px" id="res-note"></div>
   </div>
@@ -680,6 +687,7 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="field"><label>Pilot Beam Threshold (ft)</label><input type="number" step="0.1" id="r_pilotBeamThreshold" value="12.5" oninput="saveRates()"></div>
       <div class="field"><label>Customer Trailer Discount</label><input type="number" step="0.01" id="r_trailerDiscount" value="0.20" oninput="saveRates()"></div>
       <div class="field"><label>Permit Fee per State ($)</label><input type="number" step="0.01" id="r_permitFee" value="45.00" oninput="saveRates()"></div>
+      <div class="field"><label>Avg Truck Speed (mph) — for hand-entered miles</label><input type="number" step="1" id="r_avgMph" value="50" oninput="saveRates()"></div>
       <div class="field full"><label>HERE API Key (truck toll estimates)</label><input type="text" id="r_hereApiKey" placeholder="Paste key from platform.here.com" autocomplete="off" oninput="saveRates()"></div>
     </div>
   </div>
@@ -1919,7 +1927,7 @@ function seaDefaultRates(){
   };
 }
 function defaultRates(){
-  return {dieselPrice:5.5,mpgLoaded:5.0,mpgEmpty:8.0,fuelSurchargeRate:1.375,fuelSurchargeWeight:20000,loadFee:125,unloadFee:125,overnightFee:200,deadheadRate:1.0,pilotRate:3.0,pilotBeamThreshold:12.5,trailerDiscount:0.20,permitFee:45.00,driverPay:0.25,driverPayPilot:0.25,maint:0.15,ins:0.16,truck:0.09,km:0.15,sms:0.05,hereApiKey:'',osowOverrides:{},sea:seaDefaultRates()};
+  return {dieselPrice:5.5,mpgLoaded:5.0,mpgEmpty:8.0,fuelSurchargeRate:1.375,fuelSurchargeWeight:20000,loadFee:125,unloadFee:125,overnightFee:200,deadheadRate:1.0,pilotRate:3.0,pilotBeamThreshold:12.5,trailerDiscount:0.20,permitFee:45.00,driverPay:0.25,driverPayPilot:0.25,maint:0.15,ins:0.16,truck:0.09,km:0.15,sms:0.05,hereApiKey:'',avgMph:50,osowOverrides:{},sea:seaDefaultRates()};
 }
 async function loadRatesFromDB(){
   try{const rows=await sb('kmt_rates?select=*&limit=1');if(rows.length){rates={...defaultRates(),...rows[0].data};if(!rates.osowOverrides)rates.osowOverrides={};if(!rates.sea)rates.sea=seaDefaultRates();}}catch(e){}
@@ -1931,7 +1939,7 @@ function applyRatesToUI(){
   set('r_fuelSurchargeRate',r.fuelSurchargeRate);set('r_fuelSurchargeWeight',r.fuelSurchargeWeight);
   set('r_loadFee',r.loadFee);set('r_unloadFee',r.unloadFee);set('r_overnightFee',r.overnightFee);
   set('r_deadheadRate',r.deadheadRate);set('r_pilotRate',r.pilotRate);set('r_pilotBeamThreshold',r.pilotBeamThreshold);
-  set('r_trailerDiscount',r.trailerDiscount);set('r_permitFee',r.permitFee||45);set('r_hereApiKey',r.hereApiKey||'');set('r_driverPay',r.driverPay);set('r_driverPayPilot',r.driverPayPilot);
+  set('r_trailerDiscount',r.trailerDiscount);set('r_permitFee',r.permitFee||45);set('r_hereApiKey',r.hereApiKey||'');set('r_avgMph',r.avgMph||50);set('r_driverPay',r.driverPay);set('r_driverPayPilot',r.driverPayPilot);
   set('r_maint',r.maint);set('r_ins',r.ins);set('r_truck',r.truck);set('r_km',r.km);set('r_sms',r.sms);
   const ll=document.getElementById('lbl-load');if(ll)ll.textContent=r.loadFee;
   const lu=document.getElementById('lbl-unload');if(lu)lu.textContent=r.unloadFee;
@@ -1941,7 +1949,7 @@ function saveRates(){
   const f=id=>parseFloat(document.getElementById(id).value)||0;
   const prevOverrides=rates.osowOverrides||{};
   const prevSea=rates.sea||seaDefaultRates();
-  rates={dieselPrice:f('r_dieselPrice'),mpgLoaded:f('r_mpgLoaded'),mpgEmpty:f('r_mpgEmpty'),fuelSurchargeRate:f('r_fuelSurchargeRate'),fuelSurchargeWeight:f('r_fuelSurchargeWeight'),loadFee:f('r_loadFee'),unloadFee:f('r_unloadFee'),overnightFee:f('r_overnightFee'),deadheadRate:f('r_deadheadRate'),pilotRate:f('r_pilotRate'),pilotBeamThreshold:f('r_pilotBeamThreshold'),trailerDiscount:f('r_trailerDiscount'),permitFee:f('r_permitFee')||45,driverPay:f('r_driverPay'),driverPayPilot:f('r_driverPayPilot'),maint:f('r_maint'),ins:f('r_ins'),truck:f('r_truck'),km:f('r_km'),sms:f('r_sms'),hereApiKey:((document.getElementById('r_hereApiKey')||{}).value||'').trim(),osowOverrides:prevOverrides,sea:prevSea};
+  rates={dieselPrice:f('r_dieselPrice'),mpgLoaded:f('r_mpgLoaded'),mpgEmpty:f('r_mpgEmpty'),fuelSurchargeRate:f('r_fuelSurchargeRate'),fuelSurchargeWeight:f('r_fuelSurchargeWeight'),loadFee:f('r_loadFee'),unloadFee:f('r_unloadFee'),overnightFee:f('r_overnightFee'),deadheadRate:f('r_deadheadRate'),pilotRate:f('r_pilotRate'),pilotBeamThreshold:f('r_pilotBeamThreshold'),trailerDiscount:f('r_trailerDiscount'),permitFee:f('r_permitFee')||45,driverPay:f('r_driverPay'),driverPayPilot:f('r_driverPayPilot'),maint:f('r_maint'),ins:f('r_ins'),truck:f('r_truck'),km:f('r_km'),sms:f('r_sms'),hereApiKey:((document.getElementById('r_hereApiKey')||{}).value||'').trim(),avgMph:f('r_avgMph')||50,osowOverrides:prevOverrides,sea:prevSea};
   const ll=document.getElementById('lbl-load');if(ll)ll.textContent=rates.loadFee;
   const lu=document.getElementById('lbl-unload');if(lu)lu.textContent=rates.unloadFee;
   calculate();
@@ -2107,11 +2115,15 @@ function computeEstimate(v){
   const fixedCosts = fuelCost + totalTolls + permitCost + osowCost + overnight + pilotEst;
   const variableRates = driverRate + r.maint + r.ins + r.truck + r.km + r.sms;
   const breakEven = variableRates < 1 ? fixedCosts / (1 - variableRates) : 0;
-  return {tripPrice,fuelCost,driverPay,totalTolls,permits:permitCost,permitStates:v.permitStates||0,osowCost,pilotEst,maintAlloc,insAlloc,vehicleAlloc,kmAlloc,smsAlloc,profit,gallons,fuelSurcharge,overnight,isPilotHaul,breakEven};
+  // Hourly: drive time + load/unload time (only when that service is checked)
+  const jobHours=(v.driveHours||0)+(v.chkLoad?(v.loadHours||0):0)+(v.chkUnload?(v.unloadHours||0):0);
+  const revPerHour=jobHours>0?tripPrice/jobHours:null;
+  const profitPerHour=jobHours>0?profit/jobHours:null;
+  return {jobHours,revPerHour,profitPerHour,tripPrice,fuelCost,driverPay,totalTolls,permits:permitCost,permitStates:v.permitStates||0,osowCost,pilotEst,maintAlloc,insAlloc,vehicleAlloc,kmAlloc,smsAlloc,profit,gallons,fuelSurcharge,overnight,isPilotHaul,breakEven};
 }
 function getFormValues(){
   const dOut=pf('deadheadOut'),dBack=pf('deadheadBack');
-  return {tripMiles:pf('tripMiles'),weight:pf('weight'),beam:pf('beam'),overnights:pi('overnights'),deadheadOut:dOut,deadheadBack:dBack,chkLoad:document.getElementById('chkLoad').checked,chkUnload:document.getElementById('chkUnload').checked,tollsOut:pf('tollsOut'),tollsBack:pf('tollsBack'),specialTolls:pf('specialTolls'),permitStates:pi('permitStates'),osowCost:getOsowTotal(),osowSelections:getOsowSelections(),pilotCount:pi('pilotCount'),pilotMiles:pf('pilotMiles'),customerTrailer:document.getElementById('customerTrailer').value,ratePerMile:parseFloat(document.getElementById('ratePerMile').value)||3.75};
+  return {tripMiles:pf('tripMiles'),weight:pf('weight'),beam:pf('beam'),overnights:pi('overnights'),deadheadOut:dOut,deadheadBack:dBack,chkLoad:document.getElementById('chkLoad').checked,chkUnload:document.getElementById('chkUnload').checked,tollsOut:pf('tollsOut'),tollsBack:pf('tollsBack'),specialTolls:pf('specialTolls'),permitStates:pi('permitStates'),osowCost:getOsowTotal(),osowSelections:getOsowSelections(),pilotCount:pi('pilotCount'),pilotMiles:pf('pilotMiles'),customerTrailer:document.getElementById('customerTrailer').value,ratePerMile:parseFloat(document.getElementById('ratePerMile').value)||3.75,driveHours:pf('driveHours'),loadHours:pf('loadHours'),unloadHours:pf('unloadHours')};
 }
 function syncChk(){
   const l=document.getElementById('chkLoad'), u=document.getElementById('chkUnload');
@@ -2147,6 +2159,11 @@ function calculate(){
   set('res-km',fmt(e.kmAlloc));set('res-sms',fmt(e.smsAlloc));
   const profEl=document.getElementById('res-profit');
   if(profEl){profEl.textContent=(e.profit<0?'-':'')+fmt(e.profit);profEl.className='m-value '+(e.profit>=0?'pos':'neg');}
+  set('res-hours', e.jobHours>0 ? e.jobHours.toFixed(1)+' hrs' : '—');
+  set('res-revHr', e.revPerHour!==null ? fmt(e.revPerHour)+'/hr' : '—');
+  const phEl=document.getElementById('res-profHr');
+  if(phEl){ phEl.textContent = e.profitPerHour!==null ? (e.profitPerHour<0?'-':'')+fmt(e.profitPerHour)+'/hr' : '—';
+    phEl.className='m-value'+(e.profitPerHour===null?'':(e.profitPerHour>=0?' pos':' neg')); }
   const noteEl=document.getElementById('res-note');
   if(noteEl){let n=[];if(v.weight>=rates.fuelSurchargeWeight)n.push('Fuel surcharge '+fmt(e.fuelSurcharge));if(e.isPilotHaul)n.push('Pilot haul rate');if(e.gallons>0)n.push(e.gallons.toFixed(1)+' gal @ $'+rates.dieselPrice+'/gal');if(e.permitStates>0)n.push(e.permitStates+' permit states × $'+(rates.permitFee||45)+' = '+fmt(e.permits));noteEl.textContent=n.join('  ·  ');}
   const rateOpts=[3.25,3.5,3.75,4.0,4.25,4.5,4.75];
@@ -2201,6 +2218,8 @@ async function saveBid(){
     status:document.getElementById('status').value,
     trip_miles:v.tripMiles,deadhead_out:v.deadheadOut,deadhead_back:v.deadheadBack,
     overnights:v.overnights,chk_load:v.chkLoad,chk_unload:v.chkUnload,
+    drive_hours:v.driveHours,load_hours:v.loadHours,unload_hours:v.unloadHours,
+    job_hours:e.jobHours,revenue_per_hour:e.revPerHour,profit_per_hour:e.profitPerHour,
     tolls_out:v.tollsOut,tolls_back:v.tollsBack,special_tolls:v.specialTolls,
     permits:e.permits,permit_states:v.permitStates,osow_cost:e.osowCost||0,osow_selections:v.osowSelections||[],
     pilot_count:v.pilotCount,pilot_miles:v.pilotMiles,
@@ -2210,9 +2229,22 @@ async function saveBid(){
     ins_alloc:e.insAlloc,vehicle_alloc:e.vehicleAlloc,km_alloc:e.kmAlloc,
     sms_alloc:e.smsAlloc,profit:e.profit,created_by:currentSession.username
   };
+  const HOUR_COLS=['drive_hours','load_hours','unload_hours','job_hours','revenue_per_hour','profit_per_hour'];
+  const writeBid=async data=>{
+    if(editId){await sb('kmt_bids?id=eq.'+editId,'PATCH',data);}
+    else{await sb('kmt_bids','POST',data);}
+  };
   try{
-    if(editId){await sb('kmt_bids?id=eq.'+editId,'PATCH',bidData);delete document.getElementById('section-estimator').dataset.editId;showToast('Bid updated ✓');}
-    else{await sb('kmt_bids','POST',bidData);showToast('Bid saved ✓');}
+    try{ await writeBid(bidData); }
+    catch(err){
+      // Hour columns not added to the database yet → save everything else so no bid is lost
+      if(!/drive_hours|load_hours|unload_hours|job_hours|revenue_per_hour|profit_per_hour/.test(String(err&&err.message||err))) throw err;
+      const slim={...bidData}; HOUR_COLS.forEach(c=>delete slim[c]);
+      await writeBid(slim);
+      alert('Bid saved, but the hours / $ per hour were not stored because the database is missing those columns. Run the hours SQL in Supabase to fix.');
+    }
+    if(editId){delete document.getElementById('section-estimator').dataset.editId;showToast('Bid updated ✓');}
+    else{showToast('Bid saved ✓');}
     await loadBidsFromDB();showTab('bids');
   }catch(e){
     const msg = e && e.message ? e.message : String(e);
@@ -2361,6 +2393,7 @@ function bidDetailHtml(b){
       <div class="detail-row"><span class="dl">Drop</span><span class="dv">${[b.drop_name,b.drop_street,[b.drop_city,b.drop_state,b.drop_zip].filter(Boolean).join(' ')].filter(Boolean).join(', ')||b.drop_location||'—'}</span></div>
       <div class="detail-row"><span class="dl">Trip Miles</span><span class="dv">${b.trip_miles||0} mi</span></div>
       <div class="detail-row"><span class="dl">Deadhead Out / Back</span><span class="dv">${b.deadhead_out||0} / ${b.deadhead_back||0} mi</span></div>
+      ${b.job_hours?`<div class="detail-row"><span class="dl">Job Hours (drive / load / unload)</span><span class="dv">${(+b.job_hours).toFixed(1)} hrs (${b.drive_hours||0} / ${b.chk_load!==false?(b.load_hours||0):0} / ${b.chk_unload!==false?(b.unload_hours||0):0})</span></div>`:''}
     </div>
     <div class="detail-section"><div class="detail-section-title">Load</div>
       <div class="detail-row"><span class="dl">Year / Make / Model</span><span class="dv">${[b.boat_year,b.boat_make,b.boat_model].filter(Boolean).join(' ')||b.boat||'—'}</span></div>
@@ -2379,6 +2412,7 @@ function bidDetailHtml(b){
       <div class="detail-row"><span class="dl">Maint / Ins / Vehicle</span><span class="dv">${fmt(b.maint_alloc||0)} / ${fmt(b.ins_alloc||0)} / ${fmt(b.vehicle_alloc||0)}</span></div>
       <div class="detail-row"><span class="dl">KM / SMS Alloc</span><span class="dv">${fmt(b.km_alloc||0)} / ${fmt(b.sms_alloc||0)}</span></div>
       <div class="detail-row"><span class="dl" style="font-weight:600">Est. Profit</span><span class="dv" style="color:${profCls}">${(b.profit||0)<0?'−':'+'}${fmt(Math.abs(b.profit||0))}</span></div>
+      ${b.job_hours?`<div class="detail-row"><span class="dl">Revenue / Profit per Hour</span><span class="dv">${fmt(b.revenue_per_hour||0)} / ${(b.profit_per_hour||0)<0?'−':''}${fmt(b.profit_per_hour||0)} per hr</span></div>`:''}
     </div>`;
 }
 
@@ -2470,6 +2504,7 @@ function bidPrintBody(b, mode){
         pRow('Total Miles', ((+b.trip_miles||0)+(+b.deadhead_out||0)+(+b.deadhead_back||0)).toFixed(1)+' mi'),
         pRow('Rate', b.rate_per_mile ? '$'+b.rate_per_mile+' / mi' : null),
         pRow('Overnights', b.overnights||0),
+        b.job_hours ? pRow('Job Hours (drive / load / unload)', (+b.job_hours).toFixed(1)+' hrs ('+(b.drive_hours||0)+' / '+(b.chk_load!==false?(b.load_hours||0):0)+' / '+(b.chk_unload!==false?(b.unload_hours||0):0)+')') : '',
         pRow('Tolls Out / Back / Special', fmt(b.tolls_out||0)+' / '+fmt(b.tolls_back||0)+' / '+fmt(b.special_tolls||0)),
         pRow('Pilot Cars / Miles', (b.pilot_count||0)+' / '+(b.pilot_miles||0)+' mi')
       ]);
@@ -2481,7 +2516,8 @@ function bidPrintBody(b, mode){
         pRow('Pilot Est.', fmt(b.pilot_est||0)),
         pRow('Maint / Ins / Vehicle', fmt(b.maint_alloc||0)+' / '+fmt(b.ins_alloc||0)+' / '+fmt(b.vehicle_alloc||0)),
         pRow('KM / SMS Alloc', fmt(b.km_alloc||0)+' / '+fmt(b.sms_alloc||0)),
-        pRow('Est. Profit', ((b.profit||0)<0?'−':'+')+fmt(Math.abs(b.profit||0)))
+        pRow('Est. Profit', ((b.profit||0)<0?'−':'+')+fmt(Math.abs(b.profit||0))),
+        b.job_hours ? pRow('Revenue / Profit per Hour', fmt(b.revenue_per_hour||0)+' / '+((b.profit_per_hour||0)<0?'−':'')+fmt(b.profit_per_hour||0)+' per hr') : ''
       ]);
     }
   } else if (t === 'captain') {
@@ -2603,6 +2639,8 @@ function editBid(id){
   sv('notes',b.notes);sv('status',b.status);
   sv('tripMiles',b.trip_miles||0);sv('deadheadOut',b.deadhead_out||0);sv('deadheadBack',b.deadhead_back||0);
   sv('overnights',b.overnights||0);sv('tollsOut',b.tolls_out||0);sv('tollsBack',b.tolls_back||0);
+  lastRouteMph = (b.drive_hours>0 && (b.trip_miles+b.deadhead_out+b.deadhead_back)>0) ? (+b.trip_miles + +b.deadhead_out + +b.deadhead_back)/b.drive_hours : null;
+  sv('driveHours',b.drive_hours||0);sv('loadHours',b.load_hours==null?1:b.load_hours);sv('unloadHours',b.unload_hours==null?1:b.unload_hours);
   sv('specialTolls',b.special_tolls||0);sv('permitStates',b.permit_states||0);sv('pilotCount',b.pilot_count||0);sv('pilotMiles',b.pilot_miles||0);
   const ctpEl=document.getElementById('customTripPrice');if(ctpEl)ctpEl.value=b.custom_trip_price||'';
   document.getElementById('chkLoad').checked=b.chk_load!==false;syncChk();
@@ -2616,14 +2654,15 @@ async function deleteBid(id){
   try{await sb('kmt_bids?id=eq.'+id,'DELETE');await loadBidsFromDB();showToast('Bid deleted');}catch(e){showToast('Delete failed');}
 }
 function clearForm(){
-  routeMilesSeq++; tollSeq++; lastRouteCoords = null; lastLoadedStates = null;
+  routeMilesSeq++; tollSeq++; lastRouteCoords = null; lastLoadedStates = null; lastRouteMph = null;
   { const os = document.getElementById('osow-auto-status'); if (os) os.textContent = ''; }
   { const ta = document.getElementById('tollAxles'); if (ta) ta.value = 4; }
   setTollStatus('Tolls estimate automatically with the miles (needs a HERE API key under Admin → Rates).');
   setRouteMilesStatus('Miles fill in automatically once pickup and drop addresses are entered. Base: 910 Kentmorr Rd, Stevensville, MD.');
   delete document.getElementById('section-estimator').dataset.editId;
   ['customer','customer-phone','customer-email','boat-year','boat-make','boat-model','loa','beam','weight','height','draft','pickup-name','pickup-street','pickup-city','pickup-state','pickup-zip','drop-name','drop-street','drop-city','drop-state','drop-zip','notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});syncAllFtIn();
-  ['tripMiles','deadheadOut','deadheadBack','overnights','tollsOut','tollsBack','specialTolls','permitStates','pilotCount','pilotMiles','customTripPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=0});
+  ['tripMiles','deadheadOut','deadheadBack','overnights','driveHours','tollsOut','tollsBack','specialTolls','permitStates','pilotCount','pilotMiles','customTripPrice'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=0});
+  ['loadHours','unloadHours'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=1});
   document.getElementById('chkLoad').checked=true;document.getElementById('chkUnload').checked=true;syncChk();
   clearOsowRows();
   document.getElementById('customerTrailer').value='N';document.getElementById('ratePerMile').value='3.75';
@@ -4476,6 +4515,25 @@ function gmapsAutocomplete(prefix, value, isStreet) {
 // ══════════════════════════════════════════════
 const KMT_BASE_ADDRESS = '910 Kentmorr Road, Stevensville, MD 21666';
 const HOS_DRIVING_HOURS = 11;   // legal driving hours per day
+function overnightsForHours(h){ return h > 0 ? Math.max(0, Math.ceil(h / HOS_DRIVING_HOURS) - 1) : 0; }   // driving days minus one
+let lastRouteMph = null;   // average speed of the last route lookup (miles ÷ hours)
+function hoursFromMiles(){
+  const miles = pf('tripMiles') + pf('deadheadOut') + pf('deadheadBack');
+  const usingRoute = !!lastRouteMph;
+  const mph = lastRouteMph || (rates && rates.avgMph) || 50;
+  const hrs = miles > 0 ? Math.round(miles / mph * 10) / 10 : 0;
+  document.getElementById('driveHours').value = hrs;
+  document.getElementById('overnights').value = overnightsForHours(hrs);
+  const st = document.getElementById('hours-status');
+  if (st) st.textContent = 'Drive hours re-estimated from ' + miles.toFixed(1) + ' mi at ' + mph.toFixed(1) + ' mph (' +
+    (usingRoute ? 'average speed of the looked-up route' : 'Avg Truck Speed in Admin → Rates') + ').';
+  calculate();
+}
+function overnightsFromHours(){
+  const h = parseFloat((document.getElementById('driveHours')||{}).value) || 0;
+  document.getElementById('overnights').value = overnightsForHours(h);
+  calculate();
+}
 let routeMilesTimer = null, routeMilesSeq = 0, estDirections = null;
 
 function estAddress(prefix){
@@ -4613,8 +4671,14 @@ async function estimateRouteMiles(manual){
   document.getElementById('tripMiles').value = trip;
   document.getElementById('deadheadBack').value = dhBack;
   const driveHrs = (rOut.hours || 0) + (rTrip.hours || 0) + (rBack.hours || 0);
-  const overnights = driveHrs > 0 ? Math.max(0, Math.ceil(driveHrs / HOS_DRIVING_HOURS) - 1) : 0;   // driving days minus one
-  if (driveHrs > 0) document.getElementById('overnights').value = overnights;
+  const overnights = overnightsForHours(driveHrs);
+  if (driveHrs > 0) {
+    document.getElementById('overnights').value = overnights;
+    document.getElementById('driveHours').value = Math.round(driveHrs * 10) / 10;
+    lastRouteMph = (dhOut + trip + dhBack) / driveHrs;
+    const st = document.getElementById('hours-status');
+    if (st) st.textContent = 'Drive hours from the route lookup (avg ' + lastRouteMph.toFixed(1) + ' mph). Editing any mileage re-estimates them at that speed.';
+  }
   calculate();
   setRouteMilesStatus('✓ Estimated: <b>' + dhOut + '</b> mi deadhead out · <b>' + trip + '</b> mi loaded · <b>' + dhBack +
     '</b> mi deadhead back' + (driveHrs > 0 ? ' · <b>' + driveHrs.toFixed(1) + '</b> hrs total driving → <b>' + overnights +
