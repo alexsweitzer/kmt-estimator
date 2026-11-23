@@ -304,82 +304,146 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <button class="btn" id="est-mode-sea" onclick="setEstMode('sea')" style="flex:1;font-size:14px;padding:10px">⛵ By Sea</button>
   </div>
 
-  <!-- ══ SEA (TOW BOAT) ESTIMATOR ══ -->
+  <!-- ══ SEA ESTIMATOR (Tow Boat + Captain Hire) — same layout as By Land ══ -->
   <div id="sea-estimator" style="display:none">
     <div style="display:flex;gap:8px;margin-bottom:0.9rem">
       <button class="btn primary" id="sea-kind-tow" onclick="setSeaKind('tow')" style="flex:1;font-size:13px;padding:9px">⛵ Tow Boat</button>
       <button class="btn" id="sea-kind-captain" onclick="setSeaKind('captain')" style="flex:1;font-size:13px;padding:9px">🧭 Captain Hire</button>
     </div>
 
+    <!-- ── TOW BOAT ── -->
     <div id="sea-tow">
     <div class="card">
-      <div class="card-title">Tow Boat &amp; Route</div>
+      <div class="card-title">Job Details</div>
       <div class="form-grid">
-        <div class="field"><label>Tow Boat</label>
-          <select id="sea-vessel" onchange="calcSea()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none"></select>
-        </div>
-        <div class="field"><label>Trip Rate ($/nm)</label>
-          <select id="sea-rate" onchange="calcSea()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
-            <option>16</option><option>18</option><option>20</option><option>22</option><option>24</option><option>26</option><option selected>28</option>
+        <div class="field"><label>Bid Date</label><input type="date" id="sea-date"></div>
+        <div class="field"><label>Customer Name</label><input type="text" id="sea-customer" placeholder="Customer name"></div>
+        <div class="field"><label>Customer Phone</label><input type="tel" id="sea-phone" placeholder="(410) 555-1234" oninput="formatPhone(this)"></div>
+        <div class="field"><label>Customer Email</label><input type="email" id="sea-email" placeholder="e.g. name@email.com"></div>
+        <div class="field"><label>Status</label>
+          <select id="sea-status">
+            <option value="Estimate">Estimate</option><option value="Bid Sent">Bid Sent</option>
+            <option value="Accepted">Accepted</option><option value="Declined">Declined</option><option value="Completed">Completed</option>
           </select>
         </div>
-        <div class="field"><label>Deadhead Out (nm)</label><input type="number" step="0.1" id="sea-dh-out" placeholder="0" oninput="calcSea()"></div>
-        <div class="field"><label>Deadhead Back (nm)</label><input type="number" step="0.1" id="sea-dh-back" placeholder="0" oninput="calcSea()"></div>
-        <div class="field"><label>Trip (nm)</label><input type="number" step="0.1" id="sea-trip" placeholder="0" oninput="calcSea()"></div>
-        <div class="field"><label>Pickup / Hookup Time (hrs)</label><input type="number" step="0.25" id="sea-pickup-hrs" placeholder="0" oninput="calcSea()"></div>
-        <div class="field"><label>Delivery Time (hrs)</label><input type="number" step="0.25" id="sea-delivery-hrs" placeholder="0" oninput="calcSea()"></div>
-        <div class="field"><label>Customer</label><input type="text" id="sea-customer" placeholder="Customer name"></div>
-        <div class="field"><label>Estimate Date</label><input type="date" id="sea-date"></div>
+        <div class="field full"><label>Notes</label><input type="text" id="sea-notes" placeholder="Conditions, bridge openings, tide windows…"></div>
       </div>
     </div>
-
     <div class="card">
-      <div class="card-title">Estimate</div>
+      <div class="card-title">Vessel Being Towed</div>
       <div class="form-grid">
-        <div class="field"><label>Deadhead Fee</label><input type="text" id="sea-out-deadhead" readonly style="background:var(--gray-50)"></div>
-        <div class="field"><label>Trip</label><input type="text" id="sea-out-trip" readonly style="background:var(--gray-50)"></div>
-        <div class="field"><label>Mob &amp; Demob</label><input type="text" id="sea-out-mobdemob" readonly style="background:var(--gray-50)"></div>
-        <div class="field"><label id="sea-out-fee-label">Estimated Trip Fee</label><input type="text" id="sea-out-fee" readonly style="background:#eef6ee;font-weight:700"></div>
-        <div class="field"><label>Est. Fuel Burn (gal)</label><input type="text" id="sea-out-burn" readonly style="background:var(--gray-50)"></div>
-        <div class="field"><label>Fuel Cost</label><input type="text" id="sea-out-fuel" readonly style="background:var(--gray-50)"></div>
-        <div class="field"><label>Estimated Trip Time</label><input type="text" id="sea-out-time" readonly style="background:var(--gray-50)"></div>
+        <div class="field"><label>Year</label><input type="number" id="sea-boat-year" placeholder="e.g. 2005" min="1900" max="2099"></div>
+        <div class="field"><label>Make</label><input type="text" id="sea-boat-make" placeholder="e.g. Grady-White"></div>
+        <div class="field"><label>Model</label><input type="text" id="sea-boat-model" placeholder="e.g. 306 Bimini"></div>
+        <div class="field"><label>Vessel Name</label><input type="text" id="sea-boat-name" placeholder="Vessel name"></div>
+        <div class="field"><label>LOA</label><div class="ftin"><input type="number" id="sea-loa-ft" placeholder="0" min="0" oninput="ftinChanged('sea-loa')"><span class="u">ft</span><input type="number" id="sea-loa-in" placeholder="0" min="0" max="11" oninput="ftinChanged('sea-loa')"><span class="u">in</span></div><input type="hidden" id="sea-loa"></div>
+        <div class="field"><label>Beam</label><div class="ftin"><input type="number" id="sea-beam-ft" placeholder="0" min="0" oninput="ftinChanged('sea-beam')"><span class="u">ft</span><input type="number" id="sea-beam-in" placeholder="0" min="0" max="11" oninput="ftinChanged('sea-beam')"><span class="u">in</span></div><input type="hidden" id="sea-beam"></div>
+        <div class="field"><label>Draft</label><div class="ftin"><input type="number" id="sea-draft-ft" placeholder="0" min="0" oninput="ftinChanged('sea-draft')"><span class="u">ft</span><input type="number" id="sea-draft-in" placeholder="0" min="0" max="11" oninput="ftinChanged('sea-draft')"><span class="u">in</span></div><input type="hidden" id="sea-draft"></div>
+        <div class="field"><label>Power / Sail</label>
+          <select id="sea-powersail"><option value="">—</option><option>Power</option><option>Sail</option></select>
+        </div>
       </div>
     </div>
-
     <div class="card">
-      <div class="card-title">Profit Breakdown</div>
+      <div class="card-title">Route &amp; Nautical Miles</div>
       <div class="form-grid">
-        <div class="field full"><label>Final Trip Fee ($) <span style="font-weight:400;color:var(--text-muted)">(defaults to estimate — adjust if negotiated)</span></label><input type="number" step="0.01" id="sea-final-fee" oninput="seaFeeTouched=true;calcSea()"></div>
-        <div class="field"><label>Captain Pay (⅓)</label><input type="text" id="sea-out-captain" readonly style="background:var(--gray-50)"></div>
-        <div class="field"><label>Vessel Pay (⅓)</label><input type="text" id="sea-out-vessel" readonly style="background:var(--gray-50)"></div>
-        <div class="field"><label>Fuel</label><input type="text" id="sea-out-fuel2" readonly style="background:var(--gray-50)"></div>
-        <div class="field"><label>Gross Profit</label><input type="text" id="sea-out-profit" readonly style="background:#eef6ee;font-weight:700"></div>
-        <div class="field"><label>Gross Trip Rate ($/nm)</label><input type="text" id="sea-out-grossrate" readonly style="background:var(--gray-50)"></div>
-      </div>
-      <div class="btn-row" style="margin-top:0.75rem">
-        <button class="btn primary" onclick="saveSeaBid()">💾 Save Sea Bid</button>
-        <button class="btn" onclick="clearSeaForm()">↺ Clear</button>
+        <div class="field full"><label>Pickup Location</label><input type="text" id="sea-pickup" placeholder="Marina / dock, city, state"></div>
+        <div class="field full"><label>Delivery Location</label><input type="text" id="sea-delivery" placeholder="Marina / dock, city, state"></div>
+        <div class="field"><label>Deadhead Out (nm)</label><input type="number" step="0.1" id="sea-dh-out" value="0" oninput="calcSea()"></div>
+        <div class="field"><label>Trip (nm, towing)</label><input type="number" step="0.1" id="sea-trip" value="0" oninput="calcSea()"></div>
+        <div class="field"><label>Deadhead Back (nm)</label><input type="number" step="0.1" id="sea-dh-back" value="0" oninput="calcSea()"></div>
+        <div class="field full"><div style="font-size:12px;color:var(--text-muted)">Deadhead Out = Kentmorr Marina → pickup · Trip = pickup → delivery under tow · Deadhead Back = delivery → Kentmorr. Measure on the chart plotter or Navionics.</div></div>
       </div>
     </div>
     <div class="card">
-      <div class="card-title">Notes</div>
-      <textarea id="sea-notes" rows="3" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit" placeholder="Conditions, bridge openings, tide windows, overnight stays…"></textarea>
+      <div class="card-title">Tow Boat &amp; Services</div>
+      <div class="form-grid">
+        <div class="field"><label>Tow Boat</label><select id="sea-vessel" onchange="calcSea()"></select></div>
+        <div class="field"><label>Trip Rate ($/nm)</label>
+          <select id="sea-rate" onchange="calcSea()">
+            <option value="16">$16 / nm</option><option value="18">$18 / nm</option><option value="20">$20 / nm</option><option value="22">$22 / nm</option>
+            <option value="24">$24 / nm</option><option value="26">$26 / nm</option><option value="28" selected>$28 / nm</option>
+          </select>
+        </div>
+        <div class="field"><label>Pickup / Hookup Time (hrs)</label><input type="number" step="0.25" min="0" id="sea-pickup-hrs" value="0" oninput="calcSea()"></div>
+        <div class="field"><label>Delivery Time (hrs)</label><input type="number" step="0.25" min="0" id="sea-delivery-hrs" value="0" oninput="calcSea()"></div>
+        <div class="field"><label>Overnight Stays</label><input type="number" min="0" id="sea-overnights" value="0" oninput="calcSea()"></div>
+        <div class="field full"><div id="sea-time-status" style="font-size:12px;color:var(--text-muted)"></div></div>
+      </div>
     </div>
+    <div class="card">
+      <div class="card-title">Rate Comparison</div>
+      <div style="overflow-x:auto"><table class="rate-table"><thead><tr><th>Rate</th><th>Trip Fee</th><th>Captain Pay</th><th>Est. Profit</th></tr></thead><tbody id="sea-rateTableBody"></tbody></table></div>
+    </div>
+    <div class="card" style="border-color:#b8d0f5;background:var(--blue-bg)">
+      <div class="card-title" style="color:#0f4a8a">Custom Trip Price (Optional)</div>
+      <div style="display:flex;align-items:center;gap:10px;background:white;border:1px solid #b8d0f5;border-radius:var(--radius);padding:10px 14px;margin-bottom:0.75rem">
+        <div style="font-size:22px">⚖️</div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#4a6fa5;margin-bottom:2px">Estimated Break-Even Price</div>
+          <div style="font-size:18px;font-weight:700;color:var(--navy)" id="sea-res-breakeven">$0.00</div>
+          <div style="font-size:11px;color:#4a6fa5;margin-top:2px">Covers fuel plus the captain and vessel shares with $0 profit</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+        <div class="field" style="flex:1;min-width:160px">
+          <label style="color:#0f4a8a">Override Trip Price ($)</label>
+          <input type="number" step="0.01" id="sea-custom-price" placeholder="Leave blank to use calculated price" oninput="calcSea()" style="background:white;border-color:#b8d0f5">
+        </div>
+        <div style="padding-bottom:2px;display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <button class="btn sm" onclick="document.getElementById('sea-custom-price').value='';calcSea()" style="border-color:#b8d0f5;color:#0f4a8a;background:white">✕ Clear</button>
+          <span id="sea-customPriceNote" style="font-size:12px;color:#0f4a8a;display:none">⚡ Custom price active</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:#4a6fa5;margin-top:8px">When set, this replaces the calculated trip fee and the captain / vessel split is recalculated from it.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Estimate Summary</div>
+      <div class="metrics-grid">
+        <div class="metric highlight"><div class="m-label">Trip Price</div><div class="m-value" id="sea-res-price">$0</div></div>
+        <div class="metric"><div class="m-label">Deadhead Fee</div><div class="m-value" id="sea-res-deadhead">$0</div></div>
+        <div class="metric"><div class="m-label">Trip (towing)</div><div class="m-value" id="sea-res-trip">$0</div></div>
+        <div class="metric"><div class="m-label">Mob &amp; Demob</div><div class="m-value" id="sea-res-mob">$0</div></div>
+        <div class="metric"><div class="m-label">Overnights</div><div class="m-value" id="sea-res-overnight">$0</div></div>
+        <div class="metric"><div class="m-label">Fuel Burn</div><div class="m-value" id="sea-res-burn">0 gal</div></div>
+        <div class="metric"><div class="m-label">Fuel Cost</div><div class="m-value" id="sea-res-fuel">$0</div></div>
+        <div class="metric"><div class="m-label">Captain Pay</div><div class="m-value" id="sea-res-captain">$0</div></div>
+        <div class="metric"><div class="m-label">Vessel Pay</div><div class="m-value" id="sea-res-vessel">$0</div></div>
+        <div class="metric highlight"><div class="m-label">Est. Profit</div><div class="m-value" id="sea-res-profit">$0</div></div>
+        <div class="metric"><div class="m-label">Total Job Hours</div><div class="m-value" id="sea-res-hours">—</div></div>
+        <div class="metric highlight"><div class="m-label">Revenue / Hour</div><div class="m-value" id="sea-res-revHr">—</div></div>
+        <div class="metric highlight"><div class="m-label">Profit / Hour</div><div class="m-value" id="sea-res-profHr">—</div></div>
+        <div class="metric"><div class="m-label">Gross $ / nm</div><div class="m-value" id="sea-res-grossrate">—</div></div>
+      </div>
+      <div style="font-size:12px;color:var(--text-muted);margin-top:4px" id="sea-res-note"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn accent" onclick="saveSeaBid()">💾 Save Bid</button>
+      <button class="btn" onclick="clearSeaForm()">↺ Clear</button>
+    </div>
+    <div style="height:1rem"></div>
     </div><!-- /sea-tow -->
 
-    <!-- ══ CAPTAIN HIRE ESTIMATOR ══ -->
+    <!-- ── CAPTAIN HIRE ── -->
     <div id="sea-captain" style="display:none">
       <div class="card">
-        <div class="card-title">Customer Information</div>
+        <div class="card-title">Job Details</div>
         <div class="form-grid">
+          <div class="field"><label>Bid Date</label><input type="date" id="cap-date"></div>
           <div class="field"><label>Customer Name</label><input type="text" id="cap-customer" placeholder="Customer name"></div>
-          <div class="field"><label>Phone</label><input type="tel" id="cap-phone" placeholder="(410) 555-0100"></div>
-          <div class="field"><label>Email</label><input type="email" id="cap-email" placeholder="name@email.com"></div>
-          <div class="field"><label>Estimate Date</label><input type="date" id="cap-date"></div>
+          <div class="field"><label>Customer Phone</label><input type="tel" id="cap-phone" placeholder="(410) 555-1234" oninput="formatPhone(this)"></div>
+          <div class="field"><label>Customer Email</label><input type="email" id="cap-email" placeholder="e.g. name@email.com"></div>
+          <div class="field"><label>Status</label>
+            <select id="cap-status">
+              <option value="Estimate">Estimate</option><option value="Bid Sent">Bid Sent</option>
+              <option value="Accepted">Accepted</option><option value="Declined">Declined</option><option value="Completed">Completed</option>
+            </select>
+          </div>
+          <div class="field full"><label>Notes</label><input type="text" id="cap-notes" placeholder="Delivery window, provisioning, owner aboard…"></div>
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Vessel Information</div>
+        <div class="card-title">Vessel</div>
         <div class="form-grid">
           <div class="field"><label>Year</label><input type="number" id="cap-year" placeholder="2020" min="1900" max="2100"></div>
           <div class="field"><label>Make</label><input type="text" id="cap-make" placeholder="e.g. Beneteau"></div>
@@ -387,14 +451,12 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
           <div class="field"><label>Vessel Name</label><input type="text" id="cap-vesselname" placeholder="Vessel name"></div>
           <div class="field"><label>LOA</label><div class="ftin"><input type="number" id="cap-loa-ft" placeholder="0" min="0" oninput="ftinChanged('cap-loa')"><span class="u">ft</span><input type="number" id="cap-loa-in" placeholder="0" min="0" max="11" oninput="ftinChanged('cap-loa')"><span class="u">in</span></div><input type="hidden" id="cap-loa"></div>
           <div class="field"><label>Power / Sail</label>
-            <select id="cap-powersail" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
-              <option value="">—</option><option>Power</option><option>Sail</option>
-            </select>
+            <select id="cap-powersail"><option value="">—</option><option>Power</option><option>Sail</option></select>
           </div>
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Pickup &amp; Destination</div>
+        <div class="card-title">Route</div>
         <div class="form-grid">
           <div class="field full"><label>Pickup Location</label><input type="text" id="cap-pickup" placeholder="Marina / city, state"></div>
           <div class="field full"><label>Destination</label><input type="text" id="cap-destination" placeholder="Marina / city, state"></div>
@@ -404,29 +466,42 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
         <div class="card-title">Rate &amp; Crew</div>
         <div class="form-grid">
           <div class="field"><label>Rate Type</label>
-            <select id="cap-rate-type" onchange="calcCaptain()" style="width:100%;padding:8px 10px;border-radius:var(--radius);border:1px solid var(--border);font-size:13px;background:white;color:var(--text);-webkit-appearance:none">
-              <option value="day">Day Rate</option>
-              <option value="hour">Hourly</option>
-            </select>
+            <select id="cap-rate-type" onchange="calcCaptain()"><option value="day">Day Rate</option><option value="hour">Hourly</option></select>
           </div>
-          <div class="field"><label id="cap-qty-label">Days</label><input type="number" step="0.5" id="cap-qty" placeholder="0" min="0" oninput="calcCaptain()"></div>
-          <div class="field"><label>First Mates</label><input type="number" id="cap-mates" placeholder="0" min="0" max="10" oninput="calcCaptain()"></div>
+          <div class="field"><label id="cap-qty-label">Days</label><input type="number" step="0.5" id="cap-qty" value="0" min="0" oninput="calcCaptain()"></div>
+          <div class="field"><label>First Mates</label><input type="number" id="cap-mates" value="0" min="0" max="10" oninput="calcCaptain()"></div>
         </div>
-        <p id="cap-rate-info" style="font-size:12px;color:var(--text-muted);margin:2px 0 10px"></p>
-        <div class="form-grid">
-          <div class="field"><label>Captain Fee</label><input type="text" id="cap-out-captain" readonly style="background:var(--gray-50)"></div>
-          <div class="field"><label>First Mate Fee</label><input type="text" id="cap-out-mates" readonly style="background:var(--gray-50)"></div>
-          <div class="field"><label>Total</label><input type="text" id="cap-out-total" readonly style="background:#eef6ee;font-weight:700"></div>
-        </div>
-        <div class="btn-row" style="margin-top:0.75rem">
-          <button class="btn primary" onclick="saveCaptainBid()">💾 Save Captain Bid</button>
-          <button class="btn" onclick="clearCaptainForm()">↺ Clear</button>
+        <p id="cap-rate-info" style="font-size:12px;color:var(--text-muted);margin:2px 0 0"></p>
+      </div>
+      <div class="card" style="border-color:#b8d0f5;background:var(--blue-bg)">
+        <div class="card-title" style="color:#0f4a8a">Custom Price (Optional)</div>
+        <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+          <div class="field" style="flex:1;min-width:160px">
+            <label style="color:#0f4a8a">Override Total ($)</label>
+            <input type="number" step="0.01" id="cap-custom-price" placeholder="Leave blank to use calculated price" oninput="calcCaptain()" style="background:white;border-color:#b8d0f5">
+          </div>
+          <div style="padding-bottom:2px;display:flex;gap:8px;align-items:center;flex-shrink:0">
+            <button class="btn sm" onclick="document.getElementById('cap-custom-price').value='';calcCaptain()" style="border-color:#b8d0f5;color:#0f4a8a;background:white">✕ Clear</button>
+            <span id="cap-customPriceNote" style="font-size:12px;color:#0f4a8a;display:none">⚡ Custom price active</span>
+          </div>
         </div>
       </div>
       <div class="card">
-        <div class="card-title">Notes <span style="font-weight:400;text-transform:none;color:var(--text-muted)">(optional)</span></div>
-        <textarea id="cap-notes" rows="3" style="width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit" placeholder="Delivery window, provisioning, owner aboard, licensing needs…"></textarea>
+        <div class="card-title">Estimate Summary</div>
+        <div class="metrics-grid">
+          <div class="metric highlight"><div class="m-label">Total Price</div><div class="m-value" id="cap-res-total">$0</div></div>
+          <div class="metric"><div class="m-label">Captain Fee</div><div class="m-value" id="cap-res-captain">$0</div></div>
+          <div class="metric"><div class="m-label">First Mate Fee</div><div class="m-value" id="cap-res-mates">$0</div></div>
+          <div class="metric"><div class="m-label" id="cap-res-basis-label">Days</div><div class="m-value" id="cap-res-basis">0</div></div>
+          <div class="metric highlight"><div class="m-label" id="cap-res-per-label">Revenue / Day</div><div class="m-value" id="cap-res-per">—</div></div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px" id="cap-res-note"></div>
       </div>
+      <div class="btn-row">
+        <button class="btn accent" onclick="saveCaptainBid()">💾 Save Bid</button>
+        <button class="btn" onclick="clearCaptainForm()">↺ Clear</button>
+      </div>
+      <div style="height:1rem"></div>
     </div><!-- /sea-captain -->
   </div>
 
@@ -1744,6 +1819,10 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 // ══════════════════════════════════════════════
 // SUPABASE CONFIG (hardcoded — no setup needed)
 // ══════════════════════════════════════════════
+// ── Always run on https: login hashing, GPS tracking and notifications only work on secure pages ──
+if (location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+  location.replace('https://' + location.host + location.pathname + location.search + location.hash);
+}
 // ── Google Maps API key ── paste the current key from Google Cloud → Credentials here (one place only)
 const GOOGLE_MAPS_KEY = 'AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g';
 const SB_URL = 'https://kdtlhddkthghqllkshbb.supabase.co';
@@ -1835,6 +1914,10 @@ async function doLogin(){
   errEl.classList.remove('show');
   if(!username||!password){errEl.textContent='Enter username and password.';errEl.classList.add('show');return}
   btn.textContent='Signing in...';btn.disabled=true;
+  if(!(window.crypto&&crypto.subtle)){
+    errEl.textContent='This page isn\'t secure, so the browser blocked sign-in. Open it as https://'+location.host+' and try again.';
+    errEl.classList.add('show');btn.textContent='Sign In';btn.disabled=false;return;
+  }
   try{
     const hash=await hashPassword(password);
     const rows=await sb('kmt_users?username=eq.'+encodeURIComponent(username)+'&select=*');
@@ -2276,8 +2359,9 @@ function bidSubline(b){
     return [boat+(v.name&&v.make?' “'+v.name+'”':''), (sd.pickup||'?')+' → '+(sd.destination||'?')+' · '+crew];
   }
   if(t==='boat'){
-    return ['Tow: '+(sd.vessel||'—'),
-            (sd.trip_nm||0)+' nm trip · '+((sd.deadhead_out_nm||0)+(sd.deadhead_back_nm||0))+' nm deadhead'];
+    const towed=towedDesc(sd.towed);
+    return [(towed?towed+' · ':'')+'Tow: '+(sd.vessel||'—'),
+            ((sd.pickup||sd.destination)?(sd.pickup||'?')+' → '+(sd.destination||'?')+' · ':'')+(sd.trip_nm||0)+' nm trip · '+((sd.deadhead_out_nm||0)+(sd.deadhead_back_nm||0))+' nm deadhead'];
   }
   return [[b.boat_year,b.boat_make,b.boat_model].filter(Boolean).join(' ')||b.boat||'—',
           (b.pickup||'?')+' → '+(b.drop_location||'?')+' · '+(b.trip_miles||0)+' mi'];
@@ -2324,6 +2408,10 @@ function renderBids(){
     </div>`;
   }).join('');
 }
+// ── Sea bid helpers: newer bids store numbers, older ones stored "$1,234.00" strings ──
+function sdNum(n, legacy){ if (typeof n === 'number' && isFinite(n)) return n; const p = parseFloat(String(legacy==null?'':legacy).replace(/[^0-9.\-]/g,'')); return isFinite(p) ? p : null; }
+function sdMoney(n, legacy){ const v = sdNum(n, legacy); return v === null ? null : (v < 0 ? '−' : '') + fmt(Math.abs(v)); }
+function towedDesc(tw){ tw = tw || {}; const ymm = [tw.year, tw.make, tw.model].filter(Boolean).join(' '); return (ymm + (tw.name ? (ymm ? ' “' + tw.name + '”' : tw.name) : '')) || null; }
 // ── Modal body, per bid type ──
 function dRow(label,val){ return `<div class="detail-row"><span class="dl">${label}</span><span class="dv">${(val===null||val===undefined||val==='')?'—':val}</span></div>`; }
 function dSec(title,rows){ return `<div class="detail-section"><div class="detail-section-title">${title}</div>${rows.join('')}</div>`; }
@@ -2332,57 +2420,69 @@ function bidDetailHtml(b){
   const t=bidType(b), sd=b.sea_data||{};
   const profCls=(b.profit||0)>=0?'var(--green)':'var(--red)';
 
+  const phone=b.customer_phone||sd.phone, email=b.customer_email||sd.email;
+  const custSec=(phone||email)?dSec('Customer',[dRow('Phone',phone),dRow('Email',email)]):'';
+  const profitRow=(val)=>`<div class="detail-row"><span class="dl" style="font-weight:600">Est. Profit</span><span class="dv" style="color:${(val||0)>=0?'var(--green)':'var(--red)'}">${(val||0)<0?'−':'+'}${fmt(Math.abs(val||0))}</span></div>`;
+  const priceRow=(label,val)=>`<div class="detail-row"><span class="dl" style="font-weight:600">${label}</span><span class="dv" style="font-weight:700">${fmt(val||0)}</span></div>`;
+
   if(t==='captain'){
     const v=sd.vessel||{};
     const unit=sd.rate_type==='hour'?'hr':'day';
-    const loa=v.loa?(fmtFtIn(v.loa)||v.loa+' ft'):null;
-    return dSec('Customer',[
-        dRow('Phone', sd.phone),
-        dRow('Email', sd.email)
-      ])
+    return custSec
       + dSec('Vessel',[
         dRow('Year / Make / Model', [v.year,v.make,v.model].filter(Boolean).join(' ')||null),
         dRow('Vessel Name', v.name),
-        dRow('LOA', loa),
+        dRow('LOA', v.loa?(fmtFtIn(v.loa)||v.loa+' ft'):null),
         dRow('Power / Sail', v.power_sail)
       ])
-      + dSec('Route',[
-        dRow('Pickup', sd.pickup),
-        dRow('Destination', sd.destination)
-      ])
+      + dSec('Route',[ dRow('Pickup', sd.pickup), dRow('Destination', sd.destination) ])
       + dSec('Hire Terms',[
         dRow('Rate Basis', sd.rate_type==='hour'?'Hourly':'Day Rate'),
         dRow(sd.rate_type==='hour'?'Hours':'Days', sd.qty||0),
         dRow('Captain Rate', fmt(sd.captain_rate||0)+' / '+unit),
-        dRow('First Mates', sd.mates||0),
-        dRow('Mate Rate', sd.mates?fmt(sd.mate_rate||0)+' / '+unit:'—')
+        dRow('First Mates', sd.mates?sd.mates+' × '+fmt(sd.mate_rate||0)+' / '+unit:'0')
       ])
       + dSec('Financials',[
         dRow('Captain Fee', fmt(sd.captain_fee||0)),
         dRow('First Mate Fee', fmt(sd.mate_fee||0)),
-        `<div class="detail-row"><span class="dl" style="font-weight:600">Total</span><span class="dv" style="font-weight:700">${fmt(sd.total||b.trip_price||0)}</span></div>`
+        sd.custom_price?dRow('Calculated Total', fmt(sd.calc_total||0)+' (custom price used)'):'',
+        priceRow('Total Price', b.trip_price||sd.total),
+        sd.qty?dRow('Revenue per '+(unit==='hr'?'Hour':'Day'), fmt((b.trip_price||sd.total||0)/sd.qty)+' / '+unit):''
       ]);
   }
 
   if(t==='boat'){
+    const tw=sd.towed||{};
     const dh=(sd.deadhead_out_nm||0)+(sd.deadhead_back_nm||0);
-    return dSec('Vessel & Route',[
-        dRow('Tow Boat', sd.vessel),
-        dRow('Trip', (sd.trip_nm||0)+' nm'),
+    const profit=b.profit!=null?b.profit:sdNum(sd.profit_usd, sd.gross_profit);
+    const hours=b.job_hours||sd.hours;
+    return custSec
+      + dSec('Route',[
+        dRow('Pickup', sd.pickup), dRow('Delivery', sd.destination),
+        dRow('Trip (towing)', (sd.trip_nm||0)+' nm'),
         dRow('Deadhead Out / Back', (sd.deadhead_out_nm||0)+' / '+(sd.deadhead_back_nm||0)+' nm ('+dh+' total)'),
+        hours?dRow('Job Hours', (+hours).toFixed(1)+' hrs (incl. '+((sd.pickup_hrs||0)+(sd.delivery_hrs||0))+' hrs hookup / delivery)'):dRow('Estimated Trip Time', sd.trip_time)
+      ])
+      + ((tw.year||tw.make||tw.model||tw.name||tw.loa)?dSec('Vessel Towed',[
+        dRow('Year / Make / Model', [tw.year,tw.make,tw.model].filter(Boolean).join(' ')||null),
+        dRow('Vessel Name', tw.name),
+        dRow('LOA / Beam / Draft', [tw.loa,tw.beam,tw.draft].map(x=>x?(fmtFtIn(x)||x+' ft'):'—').join(' / ')),
+        dRow('Power / Sail', tw.power_sail)
+      ]):'')
+      + dSec('Tow Boat & Rate',[
+        dRow('Tow Boat', sd.vessel),
         dRow('Trip Rate', sd.rate_per_nm?'$'+sd.rate_per_nm+' / nm':null),
-        dRow('Pickup / Delivery Time', (sd.pickup_hrs||0)+' / '+(sd.delivery_hrs||0)+' hrs')
+        dRow('Hookup / Delivery Time', (sd.pickup_hrs||0)+' / '+(sd.delivery_hrs||0)+' hrs'),
+        dRow('Overnights', sd.overnights||0)
       ])
-      + dSec('Estimate',[
-        dRow('Estimated Trip Fee', sd.est_fee),
-        dRow('Fuel Cost', sd.fuel_cost),
-        dRow('Estimated Trip Time', sd.trip_time)
-      ])
-      + dSec('Split',[
-        dRow('Captain Pay', sd.captain_pay),
-        dRow('Vessel Pay', sd.vessel_pay),
-        dRow('Gross Profit', sd.gross_profit),
-        `<div class="detail-row"><span class="dl" style="font-weight:600">Final Trip Fee</span><span class="dv" style="font-weight:700">${fmt(b.trip_price||0)}</span></div>`
+      + dSec('Financials',[
+        priceRow('Trip Price', b.trip_price),
+        sd.deadhead_fee!=null?dRow('Deadhead / Trip / Mob & Demob', fmt(sd.deadhead_fee)+' / '+fmt(sd.trip_fee||0)+' / '+fmt(sd.mob_demob||0)):dRow('Estimated Trip Fee', sd.est_fee),
+        sd.overnight_fee?dRow('Overnights', fmt(sd.overnight_fee)):'',
+        dRow('Fuel Cost', sdMoney(sd.fuel_usd, sd.fuel_cost)+(sd.fuel_gal?' ('+(+sd.fuel_gal).toFixed(1)+' gal)':'')),
+        dRow('Captain / Vessel Pay', (sdMoney(sd.captain_usd, sd.captain_pay)||'—')+' / '+(sdMoney(sd.vessel_usd, sd.vessel_pay)||'—')),
+        profitRow(profit),
+        (b.revenue_per_hour!=null||hours)?dRow('Revenue / Profit per Hour', fmt(b.revenue_per_hour||((b.trip_price||0)/hours))+' / '+((profit||0)<0?'−':'')+fmt(Math.abs(b.profit_per_hour!=null?b.profit_per_hour:(profit||0)/hours))+' per hr'):''
       ]);
   }
 
@@ -2440,7 +2540,7 @@ function viewBid(id){
       <button class="btn primary" onclick="updateBidStatus('${b.id}');this.closest('.overlay').remove()">Save Status</button>
       <button class="btn" onclick="printBid('${b.id}','customer')">🖨 Customer Quote</button>
       <button class="btn" onclick="printBid('${b.id}','internal')">🖨 Internal Sheet</button>
-      ${bidType(b)==='truck'?`<button class="btn" onclick="editBid('${b.id}');this.closest('.overlay').remove()">✏️ Edit</button>`:''}
+      <button class="btn" onclick="editBid('${b.id}');this.closest('.overlay').remove()">✏️ Edit</button>
       <button class="btn danger" onclick="if(confirm('Delete this bid?')){deleteBid('${b.id}');this.closest('.overlay').remove()}">🗑 Delete</button>
     </div>
   </div>`;
@@ -2469,8 +2569,8 @@ function bidQuoteNo(b){ return 'Q-' + String(b.id||'').replace(/-/g,'').slice(0,
 function bidPrintBody(b, mode){
   const t = bidType(b), sd = b.sea_data || {};
   const custName = b.customer || 'Customer';
-  const phone = t==='truck' ? b.customer_phone : sd.phone;
-  const email = t==='truck' ? b.customer_email : sd.email;
+  const phone = b.customer_phone || sd.phone;
+  const email = b.customer_email || sd.email;
   let out = pTable('Customer', [pRow('Name', custName), pRow('Phone', phone), pRow('Email', email)]);
   let total = b.trip_price || 0;
 
@@ -2522,7 +2622,7 @@ function bidPrintBody(b, mode){
     }
   } else if (t === 'captain') {
     const v = sd.vessel || {}, unit = sd.rate_type==='hour' ? 'hr' : 'day';
-    total = sd.total || b.trip_price || 0;
+    total = b.trip_price || sd.total || 0;
     out += pTable('Vessel', [
       pRow('Year / Make / Model', [v.year,v.make,v.model].filter(Boolean).join(' ')),
       pRow('Vessel Name', v.name), pRow('Length (LOA)', pFtIn(v.loa)), pRow('Power / Sail', v.power_sail)
@@ -2532,23 +2632,53 @@ function bidPrintBody(b, mode){
       pRow('Pickup', sd.pickup), pRow('Destination', sd.destination),
       pRow('Rate Basis', sd.rate_type==='hour' ? 'Hourly' : 'Day rate'),
       pRow(sd.rate_type==='hour' ? 'Hours' : 'Days', sd.qty||0),
-      pRow('Captain', fmt(sd.captain_rate||0)+' / '+unit+' = '+fmt(sd.captain_fee||0)),
-      sd.mates ? pRow('First Mates', sd.mates+' × '+fmt(sd.mate_rate||0)+' / '+unit+' = '+fmt(sd.mate_fee||0)) : ''
+      pRow('Crew', '1 captain' + (sd.mates ? ' + ' + sd.mates + ' first mate' + (sd.mates==1?'':'s') : ''))
     ]);
+    if (mode === 'internal') {
+      out += pTable('Fee Detail', [
+        pRow('Captain', fmt(sd.captain_rate||0)+' / '+unit+' × '+(sd.qty||0)+' = '+fmt(sd.captain_fee||0)),
+        sd.mates ? pRow('First Mates', sd.mates+' × '+fmt(sd.mate_rate||0)+' / '+unit+' × '+(sd.qty||0)+' = '+fmt(sd.mate_fee||0)) : '',
+        sd.custom_price ? pRow('Calculated Total', fmt(sd.calc_total||0)+' (custom price used)') : '',
+        sd.qty ? pRow('Revenue per '+(unit==='hr'?'Hour':'Day'), fmt(total/sd.qty)+' / '+unit) : ''
+      ]);
+    }
   } else {
+    const tw = sd.towed || {};
+    const hours = b.job_hours || sd.hours;
+    const profit = b.profit != null ? b.profit : sdNum(sd.profit_usd, sd.gross_profit);
+    if (tw.year || tw.make || tw.model || tw.name || tw.loa) out += pTable('Vessel Towed', [
+      pRow('Year / Make / Model', [tw.year,tw.make,tw.model].filter(Boolean).join(' ')),
+      pRow('Vessel Name', tw.name), pRow('Length (LOA)', pFtIn(tw.loa)), pRow('Beam', pFtIn(tw.beam)),
+      pRow('Draft', pFtIn(tw.draft)), pRow('Power / Sail', tw.power_sail)
+    ]);
     out += pTable('Tow / Water Transport', [
       pRow('Service', 'Vessel tow / transport by water'),
+      pRow('Pickup', sd.pickup), pRow('Delivery', sd.destination),
       pRow('Trip Distance', (sd.trip_nm||0)+' nm'),
-      pRow('Estimated Trip Time', sd.trip_time)
+      pRow('Estimated Job Time', hours ? (+hours).toFixed(1)+' hrs' : sd.trip_time)
     ]);
+    const incl = ['Tow vessel and licensed captain', 'Fuel'];
+    if (sd.pickup_hrs) incl.push('Hookup / pickup');
+    if (sd.delivery_hrs) incl.push('Delivery / tie-up');
+    if (sd.overnights) incl.push(sd.overnights + ' overnight' + (sd.overnights==1?'':'s'));
+    out += pTable('Price Includes', [pRow('Included', incl.join(' · '))]);
     if (mode === 'internal') {
       out += pTable('Trip Detail', [
         pRow('Tow Boat', sd.vessel),
         pRow('Deadhead Out / Back', (sd.deadhead_out_nm||0)+' / '+(sd.deadhead_back_nm||0)+' nm'),
         pRow('Trip Rate', sd.rate_per_nm ? '$'+sd.rate_per_nm+' / nm' : null),
-        pRow('Pickup / Delivery Time', (sd.pickup_hrs||0)+' / '+(sd.delivery_hrs||0)+' hrs'),
-        pRow('Estimated Trip Fee', sd.est_fee), pRow('Fuel Cost', sd.fuel_cost),
-        pRow('Captain Pay', sd.captain_pay), pRow('Vessel Pay', sd.vessel_pay), pRow('Gross Profit', sd.gross_profit)
+        pRow('Hookup / Delivery Time', (sd.pickup_hrs||0)+' / '+(sd.delivery_hrs||0)+' hrs'),
+        pRow('Overnights', sd.overnights||0),
+        hours ? pRow('Job Hours', (+hours).toFixed(1)+' hrs' + (sd.run_hours!=null ? ' ('+(+sd.run_hours).toFixed(1)+' underway)' : '')) : ''
+      ]);
+      out += pTable('Costs', [
+        sd.deadhead_fee!=null ? pRow('Fee Build-up', 'Deadhead '+fmt(sd.deadhead_fee)+' · Trip '+fmt(sd.trip_fee||0)+' · Mob/Demob '+fmt(sd.mob_demob||0)+(sd.overnight_fee?' · Overnights '+fmt(sd.overnight_fee):'')) : pRow('Estimated Trip Fee', sd.est_fee),
+        b.custom_trip_price ? pRow('Calculated Fee', fmt(sd.calc_fee||0)+' (custom price used)') : '',
+        pRow('Fuel', (sdMoney(sd.fuel_usd, sd.fuel_cost)||'—')+(sd.fuel_gal?' ('+(+sd.fuel_gal).toFixed(1)+' gal)':'')),
+        pRow('Captain Pay', sdMoney(sd.captain_usd, sd.captain_pay)),
+        pRow('Vessel Pay', sdMoney(sd.vessel_usd, sd.vessel_pay)),
+        profit != null ? pRow('Est. Profit', (profit<0?'−':'+')+fmt(Math.abs(profit))) : '',
+        hours ? pRow('Revenue / Profit per Hour', fmt((b.trip_price||0)/hours)+' / '+((profit||0)<0?'−':'')+fmt(Math.abs((profit||0)/hours))+' per hr') : ''
       ]);
     }
   }
@@ -2629,6 +2759,10 @@ async function updateBidStatus(id){
 }
 function editBid(id){
   const b=bids.find(x=>x.id==id);if(!b)return;
+  const bt=bidType(b);
+  if(bt==='boat'){editSeaBid(b);return;}
+  if(bt==='captain'){editCaptainBid(b);return;}
+  setEstMode('land');
   const sv=(i,v)=>{const el=document.getElementById(i);if(el)el.value=v||''};
   sv('bidDate',b.bid_date);sv('customer',b.customer);sv('customer-phone',b.customer_phone);sv('customer-email',b.customer_email);
   applyPhoneFormat('customer-phone');
@@ -3575,6 +3709,25 @@ let photoState = { pretrip: [], posttrip: [] };
 const SB_STORAGE_URL = SB_URL + '/storage/v1';
 const PHOTO_BUCKET = 'kmt-load-photos';
 
+// Shrink phone photos before upload (≈ 4 MB → ≈ 300 KB) so Storage doesn't fill up.
+// Long side capped at 1600 px, JPEG quality 0.75. Falls back to the original if anything fails or it isn't smaller.
+const PHOTO_MAX_PX = 1600, PHOTO_QUALITY = 0.75;
+async function compressPhoto(file){
+  if (!/^image\/(jpeg|jpg|png|webp|heic|heif)$/i.test(file.type || '') && !/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)) return file;
+  try {
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = url; });
+    const scale = Math.min(1, PHOTO_MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    const blob = await new Promise(res => c.toBlob(res, 'image/jpeg', PHOTO_QUALITY));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+  } catch(e) { return file; }
+}
+
 async function handlePhotoUpload(section, files) {
   if (!files || !files.length) return;
   const grid = document.getElementById(section + '-photos-grid');
@@ -3586,7 +3739,8 @@ async function handlePhotoUpload(section, files) {
   progress.style.display = 'block';
   let uploaded = 0;
   for (let i = 0; i < allowed; i++) {
-    const file = files[i];
+    progress.textContent = `Preparing photo ${i + 1} of ${allowed}...`;
+    const file = await compressPhoto(files[i]);
     if (file.size > 10 * 1024 * 1024) { showToast(file.name + ' is too large (max 10MB)'); continue; }
     progress.textContent = `Uploading photo ${i + 1} of ${allowed}...`;
     try {
@@ -7796,87 +7950,13 @@ function setSeaKind(k){
   const bt = document.getElementById('sea-kind-tow'), bc = document.getElementById('sea-kind-captain');
   if (bt) bt.className = cap ? 'btn' : 'btn primary';
   if (bc) bc.className = cap ? 'btn primary' : 'btn';
-  if (cap) calcCaptain();
+  if (cap) calcCaptain(); else calcSea();
 }
 
-function calcCaptain(){
-  const s = SEA();
-  const typeEl = document.getElementById('cap-rate-type');
-  if (!typeEl) return;
-  const daily = typeEl.value !== 'hour';
-  const qty = seaNum('cap-qty');
-  const mates = Math.max(0, Math.round(seaNum('cap-mates')));
-  const capRate = daily ? (s.captainDayRate || 0) : (s.captainHourlyRate || 0);
-  const mateRate = daily ? (s.mateDayRate || 0) : (s.mateHourlyRate || 0);
-  const unit = daily ? 'day' : 'hr';
-
-  const lbl = document.getElementById('cap-qty-label');
-  if (lbl) lbl.textContent = daily ? 'Days' : 'Hours';
-  const info = document.getElementById('cap-rate-info');
-  if (info) info.textContent = 'Captain ' + seaMoney(capRate) + '/' + unit +
-    ' · First Mate ' + seaMoney(mateRate) + '/' + unit + ' — set under Admin → Rates → Boat';
-
-  const captainFee = qty * capRate;
-  const mateFee = mates * qty * mateRate;
-  const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
-  set('cap-out-captain', seaMoney(captainFee));
-  set('cap-out-mates', mates ? seaMoney(mateFee) + '  (' + mates + ' × ' + seaMoney(qty * mateRate) + ')' : seaMoney(0));
-  set('cap-out-total', seaMoney(captainFee + mateFee));
-}
-
-function clearCaptainForm(){
-  ['cap-customer','cap-phone','cap-email','cap-year','cap-make','cap-model','cap-vesselname',
-   'cap-loa','cap-loa-ft','cap-loa-in','cap-powersail','cap-pickup','cap-destination',
-   'cap-qty','cap-mates','cap-notes']
-    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  const rt = document.getElementById('cap-rate-type'); if (rt) rt.value = 'day';
-  const cd = document.getElementById('cap-date'); if (cd) cd.value = todayISO();
-  calcCaptain();
-}
-
-async function saveCaptainBid(){
-  const customer = (document.getElementById('cap-customer').value || '').trim();
-  if (!customer) { showToast('Enter a customer name first'); return; }
-  const s = SEA();
-  const daily = document.getElementById('cap-rate-type').value !== 'hour';
-  const qty = seaNum('cap-qty');
-  const mates = Math.max(0, Math.round(seaNum('cap-mates')));
-  const capRate = daily ? (s.captainDayRate || 0) : (s.captainHourlyRate || 0);
-  const mateRate = daily ? (s.mateDayRate || 0) : (s.mateHourlyRate || 0);
-  const total = qty * capRate + mates * qty * mateRate;
-  const txt = id => (document.getElementById(id)?.value || '').trim() || null;
-  const seaData = {
-    kind: 'captain',
-    rate_type: daily ? 'day' : 'hour',
-    qty, mates,
-    captain_rate: capRate, mate_rate: mateRate,
-    captain_fee: qty * capRate, mate_fee: mates * qty * mateRate, total,
-    phone: txt('cap-phone'), email: txt('cap-email'),
-    vessel: { year: txt('cap-year'), make: txt('cap-make'), model: txt('cap-model'),
-              name: txt('cap-vesselname'), loa: txt('cap-loa'), power_sail: txt('cap-powersail') },
-    pickup: txt('cap-pickup'), destination: txt('cap-destination'),
-  };
-  try {
-    await sb('kmt_bids', 'POST', {
-      customer,
-      bid_date: document.getElementById('cap-date').value || todayISO(),
-      status: 'Estimate',
-      trip_price: total || null,
-      notes: txt('cap-notes'),
-      transport_mode: 'sea',
-      sea_data: seaData,
-      created_by: currentSession.username,
-    });
-    showToast('Captain bid saved ✓');
-    clearCaptainForm();
-    await loadBidsFromDB();
-    showTab('bids');
-  } catch(e) {
-    const msg = e && e.message ? e.message : String(e);
-    alert('Captain bid save error:\n\n' + msg + '\n\nIf this mentions a missing column, run 13_sea_bids.sql.');
-    showToast('Save failed: ' + msg.slice(0,80));
-  }
-}
+function seaNum(id){ const v = parseFloat((document.getElementById(id)||{}).value); return isFinite(v) ? v : 0; }
+function seaTxt(id){ return ((document.getElementById(id)||{}).value || '').trim() || null; }
+function seaSet(id, val){ const el = document.getElementById(id); if (el) el.textContent = val; }
+function seaHrs(h){ const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return hh + 'h ' + String(mm).padStart(2,'0') + 'm'; }
 
 function populateSeaVessels(){
   const sel = document.getElementById('sea-vessel');
@@ -7886,106 +7966,278 @@ function populateSeaVessels(){
   if (cur !== '' && sel.querySelector(`option[value="${cur}"]`)) sel.value = cur;
 }
 
-function seaNum(id){ const v = parseFloat((document.getElementById(id)||{}).value); return isFinite(v) ? v : 0; }
-
+// ── TOW BOAT ESTIMATE ─────────────────────────────────────────
+// Fee  = deadhead nm × $/nm deadhead + trip nm × trip rate + hookup/delivery hrs × hourly fees + overnights × overnight fee
+// Cost = captain share + vessel share (of the price) + fuel (cruise burn on deadhead, tow burn on the trip)
+// Time = deadhead at cruise speed + trip at tow speed + hookup + delivery (overnights are not counted)
+function seaInputs(){
+  return {
+    vesselIdx: seaNum('sea-vessel'), rate: seaNum('sea-rate') || 28,
+    dhOut: seaNum('sea-dh-out'), dhBack: seaNum('sea-dh-back'), trip: seaNum('sea-trip'),
+    puHrs: seaNum('sea-pickup-hrs'), delHrs: seaNum('sea-delivery-hrs'),
+    overnights: Math.max(0, Math.round(seaNum('sea-overnights'))),
+    custom: (document.getElementById('sea-custom-price')||{}).value
+  };
+}
+function seaCompute(inp, opts){
+  const S = SEA(), v = S.vessels[inp.vesselIdx] || S.vessels[0] || {};
+  const dh = inp.dhOut + inp.dhBack;
+  const deadheadFee = dh * (S.deadheadPerNm || 0);
+  const tripFee = inp.rate * inp.trip;
+  const mobDemob = inp.puHrs * (S.loadFeePerHr || 0) + inp.delHrs * (S.unloadFeePerHr || 0);
+  const overnightFee = inp.overnights * (S.overnightFee || 0);
+  const calcFee = deadheadFee + tripFee + mobDemob + overnightFee;
+  const customVal = parseFloat(inp.custom);
+  const custom = !(opts && opts.ignoreCustom) && inp.custom !== '' && inp.custom != null && isFinite(customVal) && customVal > 0;
+  const price = custom ? customVal : calcFee;
+  const burn = (v.cruiseGPNM || 0) * dh + (v.towGPNM || 0) * inp.trip;
+  const fuelCost = burn * ((S.fuelPrice || {})[v.fuel] || 0);
+  const captain = (S.captainPct || 0) * price, vesselPay = (S.vesselPct || 0) * price;
+  const profit = price - captain - vesselPay - fuelCost;
+  const runHrs = (v.cruiseKn ? dh / v.cruiseKn : 0) + (v.towKn ? inp.trip / v.towKn : 0);
+  const hours = runHrs + inp.puHrs + inp.delHrs;
+  const keep = 1 - (S.captainPct || 0) - (S.vesselPct || 0);
+  return { vessel: v, dh, deadheadFee, tripFee, mobDemob, overnightFee, calcFee, custom, price, burn, fuelCost,
+           captain, vesselPay, profit, runHrs, hours,
+           revHr: hours > 0 ? price / hours : null, profHr: hours > 0 ? profit / hours : null,
+           grossPerNm: inp.trip > 0 ? price / inp.trip : null,
+           breakeven: keep > 0 ? fuelCost / keep : null };
+}
 function calcSea(){
-  const v = SEA().vessels[seaNum('sea-vessel')] || SEA().vessels[0];
-  const dhOut = seaNum('sea-dh-out'), dhBack = seaNum('sea-dh-back'), trip = seaNum('sea-trip');
-  const puHrs = seaNum('sea-pickup-hrs'), delHrs = seaNum('sea-delivery-hrs');
-  const rate = seaNum('sea-rate') || 28;
-  const dh = dhOut + dhBack;
-
-  // Fee components (matches the spreadsheet exactly)
-  const deadheadFee = dh * SEA().deadheadPerNm;
-  const tripFee = rate * trip;
-  const mobDemob = puHrs * SEA().loadFeePerHr + delHrs * SEA().unloadFeePerHr;
-  const estFee = deadheadFee + tripFee + mobDemob;
-
-  // Fuel: cruise burn on deadhead, towing burn on the loaded trip
-  const burn = v.cruiseGPNM * dh + v.towGPNM * trip;
-  const fuelCost = burn * (SEA().fuelPrice[v.fuel] || 0);
-
-  // Trip time: deadhead at cruise speed, trip at towing speed, plus work hours
-  const hours = (v.cruiseKn ? dh / v.cruiseKn : 0) + (v.towKn ? trip / v.towKn : 0) + puHrs + delHrs;
-  const hh = Math.floor(hours), mm = Math.round((hours - hh) * 60);
-
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-  set('sea-out-deadhead', seaMoney(deadheadFee));
-  set('sea-out-trip', seaMoney(tripFee));
-  set('sea-out-mobdemob', seaMoney(mobDemob));
-  set('sea-out-fee', seaMoney(estFee));
-  const lbl = document.getElementById('sea-out-fee-label');
-  if (lbl) lbl.textContent = 'Trip Fee @ $' + rate + ' per nm';
-  set('sea-out-burn', burn.toFixed(1));
-  set('sea-out-fuel', seaMoney(fuelCost));
-  set('sea-out-time', String(hh).padStart(2,'0') + ':' + String(mm).padStart(2,'0'));
-
-  // Final fee drives the split — follows the estimate until manually edited
-  const feeEl = document.getElementById('sea-final-fee');
-  if (feeEl && !seaFeeTouched) feeEl.value = estFee ? estFee.toFixed(2) : '';
-  const fee = feeEl && feeEl.value !== '' ? parseFloat(feeEl.value) || 0 : estFee;
-
-  const captain = SEA().captainPct * fee;
-  const vessel = SEA().vesselPct * fee;
-  const profit = fee - captain - vessel - fuelCost;
-  const capHr = hours > 0 ? captain / hours : 0;
-
-  set('sea-out-captain', seaMoney(captain) + (hours > 0 ? '  (' + seaMoney(capHr) + '/hr)' : ''));
-  set('sea-out-vessel', seaMoney(vessel));
-  set('sea-out-fuel2', seaMoney(fuelCost));
-  set('sea-out-profit', seaMoney(profit));
-  set('sea-out-grossrate', trip > 0 ? seaMoney(fee / trip) : '—');
+  if (!document.getElementById('sea-res-price')) return;
+  const inp = seaInputs(), e = seaCompute(inp);
+  const money = n => (n < 0 ? '-' : '') + fmt(Math.abs(n));
+  seaSet('sea-res-price', fmt(e.price));
+  seaSet('sea-res-deadhead', fmt(e.deadheadFee));
+  seaSet('sea-res-trip', fmt(e.tripFee));
+  seaSet('sea-res-mob', fmt(e.mobDemob));
+  seaSet('sea-res-overnight', fmt(e.overnightFee));
+  seaSet('sea-res-burn', e.burn.toFixed(1) + ' gal');
+  seaSet('sea-res-fuel', fmt(e.fuelCost));
+  seaSet('sea-res-captain', fmt(e.captain));
+  seaSet('sea-res-vessel', fmt(e.vesselPay));
+  const pEl = document.getElementById('sea-res-profit');
+  if (pEl) { pEl.textContent = money(e.profit); pEl.className = 'm-value ' + (e.profit >= 0 ? 'pos' : 'neg'); }
+  seaSet('sea-res-hours', e.hours > 0 ? e.hours.toFixed(1) + ' hrs' : '—');
+  seaSet('sea-res-revHr', e.revHr !== null ? fmt(e.revHr) + '/hr' : '—');
+  const phEl = document.getElementById('sea-res-profHr');
+  if (phEl) { phEl.textContent = e.profHr !== null ? money(e.profHr) + '/hr' : '—';
+    phEl.className = 'm-value' + (e.profHr === null ? '' : (e.profHr >= 0 ? ' pos' : ' neg')); }
+  seaSet('sea-res-grossrate', e.grossPerNm !== null ? fmt(e.grossPerNm) + '/nm' : '—');
+  seaSet('sea-res-breakeven', e.breakeven !== null ? fmt(e.breakeven) : '—');
+  const cn = document.getElementById('sea-customPriceNote'); if (cn) cn.style.display = e.custom ? '' : 'none';
+  seaSet('sea-time-status', e.hours > 0
+    ? 'Est. job time ' + seaHrs(e.hours) + ': ' + seaHrs(e.runHrs) + ' underway (' + (e.vessel.cruiseKn||0) + ' kn cruise / ' + (e.vessel.towKn||0) + ' kn tow) + ' + (inp.puHrs + inp.delHrs) + ' hrs hookup & delivery. Overnights not counted.'
+    : 'Enter nautical miles and hookup / delivery time to estimate job hours.');
+  const S = SEA();
+  seaSet('sea-res-note', 'Captain ' + Math.round((S.captainPct||0)*100) + '% · Vessel ' + Math.round((S.vesselPct||0)*100) + '% of price · ' +
+    (e.vessel.fuel || '') + ' $' + (((S.fuelPrice||{})[e.vessel.fuel]) || 0).toFixed(2) + '/gal · Deadhead $' + (S.deadheadPerNm||0) + '/nm · rates under Admin → Rates → Boat' +
+    (e.custom ? ' · ⚡ custom price (calculated: ' + fmt(e.calcFee) + ')' : ''));
+  // Rate comparison
+  const tbody = document.getElementById('sea-rateTableBody');
+  if (tbody) {
+    const opts = Array.from(document.getElementById('sea-rate').options).map(o => parseFloat(o.value));
+    tbody.innerHTML = opts.map(r => {
+      const x = seaCompute({ ...inp, rate: r }, { ignoreCustom: true });
+      const sel = Math.abs(r - inp.rate) < 0.001 ? ' class="sel-row"' : '';
+      const pc = x.profit >= 0 ? 'color:var(--green)' : 'color:var(--red)';
+      return `<tr${sel}><td><strong>$${r}/nm</strong></td><td>${fmt(x.price)}</td><td>${fmt(x.captain)}</td><td style="${pc}">${x.profit<0?'-':''}${fmt(Math.abs(x.profit))}</td></tr>`;
+    }).join('');
+  }
 }
 
 function clearSeaForm(){
-  ['sea-dh-out','sea-dh-back','sea-trip','sea-pickup-hrs','sea-delivery-hrs','sea-customer','sea-final-fee','sea-notes']
+  delete document.getElementById('sea-estimator').dataset.editId;
+  ['sea-customer','sea-phone','sea-email','sea-notes','sea-boat-year','sea-boat-make','sea-boat-model','sea-boat-name',
+   'sea-loa','sea-beam','sea-draft','sea-powersail','sea-pickup','sea-delivery','sea-custom-price']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['sea-dh-out','sea-dh-back','sea-trip','sea-pickup-hrs','sea-delivery-hrs','sea-overnights']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = 0; });
   const r = document.getElementById('sea-rate'); if (r) r.value = '28';
-  const sd2 = document.getElementById('sea-date'); if (sd2) sd2.value = todayISO();
-  seaFeeTouched = false;
+  const st = document.getElementById('sea-status'); if (st) st.value = 'Estimate';
+  const d = document.getElementById('sea-date'); if (d) d.value = todayISO();
+  syncAllFtIn();
   calcSea();
 }
 
+// Shared save: POST new / PATCH when editing; drops hour columns if the DB doesn't have them yet
+async function writeSeaBid(data, editId){
+  const write = d => editId ? sb('kmt_bids?id=eq.' + editId, 'PATCH', d) : sb('kmt_bids', 'POST', d);
+  try { await write(data); }
+  catch (err) {
+    if (!/job_hours|revenue_per_hour|profit_per_hour|custom_trip_price|customer_phone|customer_email/.test(String(err && err.message || err))) throw err;
+    const slim = { ...data };
+    ['job_hours','revenue_per_hour','profit_per_hour','custom_trip_price','customer_phone','customer_email'].forEach(c => delete slim[c]);
+    await write(slim);
+  }
+}
+
 async function saveSeaBid(){
-  const customer = (document.getElementById('sea-customer').value || '').trim();
+  const customer = seaTxt('sea-customer');
   if (!customer) { showToast('Enter a customer name first'); return; }
-  const feeEl = document.getElementById('sea-final-fee');
-  const fee = parseFloat(feeEl && feeEl.value) || 0;
+  const inp = seaInputs(), e = seaCompute(inp);
+  const editId = document.getElementById('sea-estimator').dataset.editId;
   const seaData = {
-    vessel: (SEA().vessels[seaNum('sea-vessel')] || {}).name || null,
-    rate_per_nm: seaNum('sea-rate'),
-    deadhead_out_nm: seaNum('sea-dh-out'),
-    deadhead_back_nm: seaNum('sea-dh-back'),
-    trip_nm: seaNum('sea-trip'),
-    pickup_hrs: seaNum('sea-pickup-hrs'),
-    delivery_hrs: seaNum('sea-delivery-hrs'),
-    est_fee: document.getElementById('sea-out-fee').value,
-    fuel_cost: document.getElementById('sea-out-fuel').value,
-    trip_time: document.getElementById('sea-out-time').value,
-    captain_pay: document.getElementById('sea-out-captain').value,
-    vessel_pay: document.getElementById('sea-out-vessel').value,
-    gross_profit: document.getElementById('sea-out-profit').value,
+    kind: 'tow',
+    vessel: e.vessel.name || null, vessel_idx: inp.vesselIdx,
+    rate_per_nm: inp.rate,
+    deadhead_out_nm: inp.dhOut, deadhead_back_nm: inp.dhBack, trip_nm: inp.trip,
+    pickup_hrs: inp.puHrs, delivery_hrs: inp.delHrs, overnights: inp.overnights,
+    pickup: seaTxt('sea-pickup'), destination: seaTxt('sea-delivery'),
+    phone: seaTxt('sea-phone'), email: seaTxt('sea-email'),
+    towed: { year: seaTxt('sea-boat-year'), make: seaTxt('sea-boat-make'), model: seaTxt('sea-boat-model'),
+             name: seaTxt('sea-boat-name'), loa: seaTxt('sea-loa'), beam: seaTxt('sea-beam'),
+             draft: seaTxt('sea-draft'), power_sail: seaTxt('sea-powersail') },
+    deadhead_fee: e.deadheadFee, trip_fee: e.tripFee, mob_demob: e.mobDemob, overnight_fee: e.overnightFee,
+    calc_fee: e.calcFee, fuel_gal: e.burn, fuel_usd: e.fuelCost, captain_usd: e.captain, vessel_usd: e.vesselPay,
+    profit_usd: e.profit, hours: e.hours, run_hours: e.runHrs,
+    // legacy display strings (older screens read these)
+    est_fee: seaMoney(e.calcFee), fuel_cost: seaMoney(e.fuelCost), trip_time: seaHrs(e.hours),
+    captain_pay: seaMoney(e.captain), vessel_pay: seaMoney(e.vesselPay), gross_profit: seaMoney(e.profit)
   };
+  const data = {
+    customer, customer_phone: seaTxt('sea-phone'), customer_email: seaTxt('sea-email'),
+    bid_date: document.getElementById('sea-date').value || todayISO(),
+    status: document.getElementById('sea-status').value || 'Estimate',
+    trip_price: e.price || null, profit: e.profit, fuel_cost: e.fuelCost,
+    custom_trip_price: e.custom ? e.price : null,
+    job_hours: e.hours || null, revenue_per_hour: e.revHr, profit_per_hour: e.profHr,
+    notes: seaTxt('sea-notes'), transport_mode: 'sea', sea_data: seaData
+  };
+  if (!editId) data.created_by = currentSession.username;
   try {
-    await sb('kmt_bids', 'POST', {
-      customer,
-      bid_date: document.getElementById('sea-date').value || todayISO(),
-      status: 'Estimate',
-      trip_price: fee || null,
-      notes: (document.getElementById('sea-notes').value || '').trim() || null,
-      transport_mode: 'sea',
-      sea_data: seaData,
-      created_by: currentSession.username,
-    });
-    showToast('Sea bid saved ✓');
+    await writeSeaBid(data, editId);
+    showToast(editId ? 'Bid updated ✓' : 'Bid saved ✓');
     clearSeaForm();
     await loadBidsFromDB();
     showTab('bids');
-  } catch(e) {
-    const msg = e && e.message ? e.message : String(e);
-    alert('Sea bid save error:\n\n' + msg + '\n\nIf this mentions a missing column, run 13_sea_bids.sql.');
+  } catch(err) {
+    const msg = err && err.message ? err.message : String(err);
+    alert('Sea bid save error:\n\n' + msg);
     showToast('Save failed: ' + msg.slice(0,80));
   }
+}
+
+function editSeaBid(b){
+  const sd = b.sea_data || {}, tw = sd.towed || {};
+  const sv = (i, v) => { const el = document.getElementById(i); if (el) el.value = (v === null || v === undefined) ? '' : v; };
+  showTab('estimator'); setEstMode('sea'); setSeaKind('tow');
+  clearSeaForm();
+  sv('sea-date', b.bid_date); sv('sea-customer', b.customer); sv('sea-status', b.status || 'Estimate'); sv('sea-notes', b.notes);
+  sv('sea-phone', b.customer_phone || sd.phone); sv('sea-email', b.customer_email || sd.email);
+  if (typeof applyPhoneFormat === 'function') applyPhoneFormat('sea-phone');
+  sv('sea-boat-year', tw.year); sv('sea-boat-make', tw.make); sv('sea-boat-model', tw.model); sv('sea-boat-name', tw.name);
+  sv('sea-loa', tw.loa); sv('sea-beam', tw.beam); sv('sea-draft', tw.draft); sv('sea-powersail', tw.power_sail || '');
+  sv('sea-pickup', sd.pickup); sv('sea-delivery', sd.destination);
+  sv('sea-dh-out', sd.deadhead_out_nm || 0); sv('sea-dh-back', sd.deadhead_back_nm || 0); sv('sea-trip', sd.trip_nm || 0);
+  sv('sea-pickup-hrs', sd.pickup_hrs || 0); sv('sea-delivery-hrs', sd.delivery_hrs || 0); sv('sea-overnights', sd.overnights || 0);
+  sv('sea-rate', String(sd.rate_per_nm || 28));
+  const vi = SEA().vessels.findIndex(v => v.name === sd.vessel);
+  sv('sea-vessel', vi >= 0 ? vi : (sd.vessel_idx || 0));
+  // Older bids stored a negotiated "final fee" — carry it over as the custom price when it differs from the calculation
+  const calc = seaCompute(seaInputs(), { ignoreCustom: true }).calcFee;
+  if (b.trip_price && Math.abs(b.trip_price - calc) > 0.5) sv('sea-custom-price', b.trip_price);
+  syncAllFtIn();
+  document.getElementById('sea-estimator').dataset.editId = b.id;
+  calcSea();
+  showToast('Editing — tap Save Bid when done');
+}
+
+// ── CAPTAIN HIRE ESTIMATE ─────────────────────────────────────
+function captainCompute(){
+  const s = SEA();
+  const daily = ((document.getElementById('cap-rate-type')||{}).value || 'day') !== 'hour';
+  const qty = seaNum('cap-qty');
+  const mates = Math.max(0, Math.round(seaNum('cap-mates')));
+  const capRate = daily ? (s.captainDayRate || 0) : (s.captainHourlyRate || 0);
+  const mateRate = daily ? (s.mateDayRate || 0) : (s.mateHourlyRate || 0);
+  const captainFee = qty * capRate, mateFee = mates * qty * mateRate;
+  const calcTotal = captainFee + mateFee;
+  const cv = (document.getElementById('cap-custom-price')||{}).value, cn = parseFloat(cv);
+  const custom = cv !== '' && cv != null && isFinite(cn) && cn > 0;
+  const total = custom ? cn : calcTotal;
+  return { daily, unit: daily ? 'day' : 'hr', qty, mates, capRate, mateRate, captainFee, mateFee, calcTotal, custom, total,
+           per: qty > 0 ? total / qty : null };
+}
+function calcCaptain(){
+  if (!document.getElementById('cap-res-total')) return;
+  const c = captainCompute();
+  const lbl = document.getElementById('cap-qty-label'); if (lbl) lbl.textContent = c.daily ? 'Days' : 'Hours';
+  seaSet('cap-rate-info', 'Captain ' + seaMoney(c.capRate) + '/' + c.unit + ' · First Mate ' + seaMoney(c.mateRate) + '/' + c.unit + ' — set under Admin → Rates → Boat');
+  seaSet('cap-res-total', fmt(c.total));
+  seaSet('cap-res-captain', fmt(c.captainFee));
+  seaSet('cap-res-mates', c.mates ? fmt(c.mateFee) + ' (' + c.mates + ')' : fmt(0));
+  seaSet('cap-res-basis-label', c.daily ? 'Days' : 'Hours');
+  seaSet('cap-res-basis', String(c.qty));
+  seaSet('cap-res-per-label', c.daily ? 'Revenue / Day' : 'Revenue / Hour');
+  seaSet('cap-res-per', c.per !== null ? fmt(c.per) + '/' + c.unit : '—');
+  const n = document.getElementById('cap-customPriceNote'); if (n) n.style.display = c.custom ? '' : 'none';
+  seaSet('cap-res-note', c.custom ? '⚡ Custom price active (calculated: ' + fmt(c.calcTotal) + ')' : '');
+}
+function clearCaptainForm(){
+  delete document.getElementById('sea-estimator').dataset.capEditId;
+  ['cap-customer','cap-phone','cap-email','cap-notes','cap-year','cap-make','cap-model','cap-vesselname',
+   'cap-loa','cap-powersail','cap-pickup','cap-destination','cap-custom-price']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['cap-qty','cap-mates'].forEach(id => { const el = document.getElementById(id); if (el) el.value = 0; });
+  const rt = document.getElementById('cap-rate-type'); if (rt) rt.value = 'day';
+  const st = document.getElementById('cap-status'); if (st) st.value = 'Estimate';
+  const cd = document.getElementById('cap-date'); if (cd) cd.value = todayISO();
+  syncAllFtIn();
+  calcCaptain();
+}
+async function saveCaptainBid(){
+  const customer = seaTxt('cap-customer');
+  if (!customer) { showToast('Enter a customer name first'); return; }
+  const c = captainCompute();
+  const editId = document.getElementById('sea-estimator').dataset.capEditId;
+  const seaData = {
+    kind: 'captain', rate_type: c.daily ? 'day' : 'hour', qty: c.qty, mates: c.mates,
+    captain_rate: c.capRate, mate_rate: c.mateRate, captain_fee: c.captainFee, mate_fee: c.mateFee,
+    calc_total: c.calcTotal, total: c.total, custom_price: c.custom ? c.total : null,
+    phone: seaTxt('cap-phone'), email: seaTxt('cap-email'),
+    vessel: { year: seaTxt('cap-year'), make: seaTxt('cap-make'), model: seaTxt('cap-model'),
+              name: seaTxt('cap-vesselname'), loa: seaTxt('cap-loa'), power_sail: seaTxt('cap-powersail') },
+    pickup: seaTxt('cap-pickup'), destination: seaTxt('cap-destination')
+  };
+  const data = {
+    customer, customer_phone: seaTxt('cap-phone'), customer_email: seaTxt('cap-email'),
+    bid_date: document.getElementById('cap-date').value || todayISO(),
+    status: document.getElementById('cap-status').value || 'Estimate',
+    trip_price: c.total || null, custom_trip_price: c.custom ? c.total : null,
+    job_hours: !c.daily && c.qty ? c.qty : null, revenue_per_hour: !c.daily && c.per !== null ? c.per : null,
+    notes: seaTxt('cap-notes'), transport_mode: 'sea', sea_data: seaData
+  };
+  if (!editId) data.created_by = currentSession.username;
+  try {
+    await writeSeaBid(data, editId);
+    showToast(editId ? 'Bid updated ✓' : 'Bid saved ✓');
+    clearCaptainForm();
+    await loadBidsFromDB();
+    showTab('bids');
+  } catch(err) {
+    const msg = err && err.message ? err.message : String(err);
+    alert('Captain bid save error:\n\n' + msg);
+    showToast('Save failed: ' + msg.slice(0,80));
+  }
+}
+function editCaptainBid(b){
+  const sd = b.sea_data || {}, v = sd.vessel || {};
+  const sv = (i, val) => { const el = document.getElementById(i); if (el) el.value = (val === null || val === undefined) ? '' : val; };
+  showTab('estimator'); setEstMode('sea'); setSeaKind('captain');
+  clearCaptainForm();
+  sv('cap-date', b.bid_date); sv('cap-customer', b.customer); sv('cap-status', b.status || 'Estimate'); sv('cap-notes', b.notes);
+  sv('cap-phone', b.customer_phone || sd.phone); sv('cap-email', b.customer_email || sd.email);
+  if (typeof applyPhoneFormat === 'function') applyPhoneFormat('cap-phone');
+  sv('cap-year', v.year); sv('cap-make', v.make); sv('cap-model', v.model); sv('cap-vesselname', v.name);
+  sv('cap-loa', v.loa); sv('cap-powersail', v.power_sail || '');
+  sv('cap-pickup', sd.pickup); sv('cap-destination', sd.destination);
+  sv('cap-rate-type', sd.rate_type === 'hour' ? 'hour' : 'day'); sv('cap-qty', sd.qty || 0); sv('cap-mates', sd.mates || 0);
+  if (sd.custom_price) sv('cap-custom-price', sd.custom_price);
+  syncAllFtIn();
+  document.getElementById('sea-estimator').dataset.capEditId = b.id;
+  calcCaptain();
+  showToast('Editing — tap Save Bid when done');
 }
 
 // ══════════════════════════════════════════════
@@ -7995,7 +8247,7 @@ async function saveSeaBid(){
 // ══════════════════════════════════════════════
 const FTIN_FIELDS = {
   'loa':'calc', 'beam':'calc', 'height':'calc', 'draft':null,
-  'ld-loa':null, 'ld-beam':null, 'ld-height':null, 'ld-loadedheight':null, 'cap-loa':null
+  'ld-loa':null, 'ld-beam':null, 'ld-height':null, 'ld-loadedheight':null, 'cap-loa':null, 'sea-loa':null, 'sea-beam':null, 'sea-draft':null
 };
 function ftinChanged(id){
   const ftEl=document.getElementById(id+'-ft'), inEl=document.getElementById(id+'-in');
