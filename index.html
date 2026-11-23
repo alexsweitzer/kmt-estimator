@@ -347,8 +347,16 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
     <div class="card">
       <div class="card-title">Route &amp; Nautical Miles</div>
       <div class="form-grid">
-        <div class="field full"><label>Pickup Location</label><input type="text" id="sea-pickup" placeholder="Marina / dock, city, state"></div>
-        <div class="field full"><label>Delivery Location</label><input type="text" id="sea-delivery" placeholder="Marina / dock, city, state"></div>
+        <div class="field full"><label>Pickup — Location Name</label><div style="position:relative"><input type="text" id="sea-pu-name" placeholder="e.g. Kent Narrows Marina" autocomplete="off" oninput="gmapsAutocomplete('sea-pu',this.value)"><div id="sea-pu-suggestions" class="gmaps-dropdown"></div></div></div>
+        <div class="field full"><label>Pickup — Street Address</label><div style="position:relative"><input type="text" id="sea-pu-street" placeholder="e.g. 910 Kentmorr Rd" autocomplete="off" oninput="gmapsAutocomplete('sea-pu',this.value,true)"><div id="sea-pu-street-suggestions" class="gmaps-dropdown"></div></div></div>
+        <div class="field"><label>Pickup — City</label><input type="text" id="sea-pu-city" placeholder="e.g. Stevensville"></div>
+        <div class="field"><label>Pickup — State</label><input type="text" id="sea-pu-state" placeholder="e.g. MD" maxlength="2" style="text-transform:uppercase"></div>
+        <div class="field"><label>Pickup — ZIP</label><input type="text" id="sea-pu-zip" placeholder="e.g. 21666" maxlength="10"></div>
+        <div class="field full"><label>Delivery — Location Name</label><div style="position:relative"><input type="text" id="sea-dl-name" placeholder="e.g. Annapolis Yacht Basin" autocomplete="off" oninput="gmapsAutocomplete('sea-dl',this.value)"><div id="sea-dl-suggestions" class="gmaps-dropdown"></div></div></div>
+        <div class="field full"><label>Delivery — Street Address</label><div style="position:relative"><input type="text" id="sea-dl-street" placeholder="e.g. 2 Compromise St" autocomplete="off" oninput="gmapsAutocomplete('sea-dl',this.value,true)"><div id="sea-dl-street-suggestions" class="gmaps-dropdown"></div></div></div>
+        <div class="field"><label>Delivery — City</label><input type="text" id="sea-dl-city" placeholder="e.g. Annapolis"></div>
+        <div class="field"><label>Delivery — State</label><input type="text" id="sea-dl-state" placeholder="e.g. MD" maxlength="2" style="text-transform:uppercase"></div>
+        <div class="field"><label>Delivery — ZIP</label><input type="text" id="sea-dl-zip" placeholder="e.g. 21401" maxlength="10"></div>
         <div class="field"><label>Deadhead Out (nm)</label><input type="number" step="0.1" id="sea-dh-out" value="0" oninput="calcSea()"></div>
         <div class="field"><label>Trip (nm, towing)</label><input type="number" step="0.1" id="sea-trip" value="0" oninput="calcSea()"></div>
         <div class="field"><label>Deadhead Back (nm)</label><input type="number" step="0.1" id="sea-dh-back" value="0" oninput="calcSea()"></div>
@@ -458,8 +466,16 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
       <div class="card">
         <div class="card-title">Route</div>
         <div class="form-grid">
-          <div class="field full"><label>Pickup Location</label><input type="text" id="cap-pickup" placeholder="Marina / city, state"></div>
-          <div class="field full"><label>Destination</label><input type="text" id="cap-destination" placeholder="Marina / city, state"></div>
+          <div class="field full"><label>Pickup — Location Name</label><div style="position:relative"><input type="text" id="cap-pu-name" placeholder="e.g. Kentmorr Marina" autocomplete="off" oninput="gmapsAutocomplete('cap-pu',this.value)"><div id="cap-pu-suggestions" class="gmaps-dropdown"></div></div></div>
+          <div class="field full"><label>Pickup — Street Address</label><div style="position:relative"><input type="text" id="cap-pu-street" placeholder="e.g. 910 Kentmorr Rd" autocomplete="off" oninput="gmapsAutocomplete('cap-pu',this.value,true)"><div id="cap-pu-street-suggestions" class="gmaps-dropdown"></div></div></div>
+          <div class="field"><label>Pickup — City</label><input type="text" id="cap-pu-city" placeholder="e.g. Stevensville"></div>
+          <div class="field"><label>Pickup — State</label><input type="text" id="cap-pu-state" placeholder="e.g. MD" maxlength="2" style="text-transform:uppercase"></div>
+          <div class="field"><label>Pickup — ZIP</label><input type="text" id="cap-pu-zip" placeholder="e.g. 21666" maxlength="10"></div>
+          <div class="field full"><label>Destination — Location Name</label><div style="position:relative"><input type="text" id="cap-dl-name" placeholder="e.g. Solomons Island Marina" autocomplete="off" oninput="gmapsAutocomplete('cap-dl',this.value)"><div id="cap-dl-suggestions" class="gmaps-dropdown"></div></div></div>
+          <div class="field full"><label>Destination — Street Address</label><div style="position:relative"><input type="text" id="cap-dl-street" placeholder="e.g. 123 Main St" autocomplete="off" oninput="gmapsAutocomplete('cap-dl',this.value,true)"><div id="cap-dl-street-suggestions" class="gmaps-dropdown"></div></div></div>
+          <div class="field"><label>Destination — City</label><input type="text" id="cap-dl-city" placeholder="e.g. Solomons"></div>
+          <div class="field"><label>Destination — State</label><input type="text" id="cap-dl-state" placeholder="e.g. MD" maxlength="2" style="text-transform:uppercase"></div>
+          <div class="field"><label>Destination — ZIP</label><input type="text" id="cap-dl-zip" placeholder="e.g. 20688" maxlength="10"></div>
         </div>
       </div>
       <div class="card">
@@ -7956,6 +7972,24 @@ function setSeaKind(k){
 function seaNum(id){ const v = parseFloat((document.getElementById(id)||{}).value); return isFinite(v) ? v : 0; }
 function seaTxt(id){ return ((document.getElementById(id)||{}).value || '').trim() || null; }
 function seaSet(id, val){ const el = document.getElementById(id); if (el) el.textContent = val; }
+const SEA_ADDR_PARTS = ['name','street','city','state','zip'];
+function seaAddrRead(prefix){
+  const a = {}; SEA_ADDR_PARTS.forEach(k => { a[k] = seaTxt(prefix + '-' + k); });
+  if (a.state) a.state = a.state.toUpperCase();
+  return a;
+}
+// One-line version (shown on bid cards, the bid view and printouts)
+function seaAddrLine(a){
+  if (!a) return null;
+  const cityLine = [[a.city, a.state].filter(Boolean).join(', '), a.zip].filter(Boolean).join(' ');
+  return [a.name, a.street, cityLine].filter(Boolean).join(', ') || null;
+}
+function seaAddrWrite(prefix, a, legacy){
+  SEA_ADDR_PARTS.forEach(k => { const el = document.getElementById(prefix + '-' + k); if (el) el.value = (a && a[k]) || ''; });
+  // Bids saved before the address fields existed only have one line of text — put it in Location Name
+  if (!a && legacy) { const el = document.getElementById(prefix + '-name'); if (el) el.value = legacy; }
+}
+function seaAddrClear(prefix){ seaAddrWrite(prefix, null, null); }
 function seaHrs(h){ const hh = Math.floor(h), mm = Math.round((h - hh) * 60); return hh + 'h ' + String(mm).padStart(2,'0') + 'm'; }
 
 function populateSeaVessels(){
@@ -8049,8 +8083,9 @@ function calcSea(){
 function clearSeaForm(){
   delete document.getElementById('sea-estimator').dataset.editId;
   ['sea-customer','sea-phone','sea-email','sea-notes','sea-boat-year','sea-boat-make','sea-boat-model','sea-boat-name',
-   'sea-loa','sea-beam','sea-draft','sea-powersail','sea-pickup','sea-delivery','sea-custom-price']
+   'sea-loa','sea-beam','sea-draft','sea-powersail','sea-custom-price']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  seaAddrClear('sea-pu'); seaAddrClear('sea-dl');
   ['sea-dh-out','sea-dh-back','sea-trip','sea-pickup-hrs','sea-delivery-hrs','sea-overnights']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = 0; });
   const r = document.getElementById('sea-rate'); if (r) r.value = '28';
@@ -8083,7 +8118,8 @@ async function saveSeaBid(){
     rate_per_nm: inp.rate,
     deadhead_out_nm: inp.dhOut, deadhead_back_nm: inp.dhBack, trip_nm: inp.trip,
     pickup_hrs: inp.puHrs, delivery_hrs: inp.delHrs, overnights: inp.overnights,
-    pickup: seaTxt('sea-pickup'), destination: seaTxt('sea-delivery'),
+    pickup: seaAddrLine(seaAddrRead('sea-pu')), destination: seaAddrLine(seaAddrRead('sea-dl')),
+    pickup_addr: seaAddrRead('sea-pu'), destination_addr: seaAddrRead('sea-dl'),
     phone: seaTxt('sea-phone'), email: seaTxt('sea-email'),
     towed: { year: seaTxt('sea-boat-year'), make: seaTxt('sea-boat-make'), model: seaTxt('sea-boat-model'),
              name: seaTxt('sea-boat-name'), loa: seaTxt('sea-loa'), beam: seaTxt('sea-beam'),
@@ -8128,7 +8164,7 @@ function editSeaBid(b){
   if (typeof applyPhoneFormat === 'function') applyPhoneFormat('sea-phone');
   sv('sea-boat-year', tw.year); sv('sea-boat-make', tw.make); sv('sea-boat-model', tw.model); sv('sea-boat-name', tw.name);
   sv('sea-loa', tw.loa); sv('sea-beam', tw.beam); sv('sea-draft', tw.draft); sv('sea-powersail', tw.power_sail || '');
-  sv('sea-pickup', sd.pickup); sv('sea-delivery', sd.destination);
+  seaAddrWrite('sea-pu', sd.pickup_addr, sd.pickup); seaAddrWrite('sea-dl', sd.destination_addr, sd.destination);
   sv('sea-dh-out', sd.deadhead_out_nm || 0); sv('sea-dh-back', sd.deadhead_back_nm || 0); sv('sea-trip', sd.trip_nm || 0);
   sv('sea-pickup-hrs', sd.pickup_hrs || 0); sv('sea-delivery-hrs', sd.delivery_hrs || 0); sv('sea-overnights', sd.overnights || 0);
   sv('sea-rate', String(sd.rate_per_nm || 28));
@@ -8177,8 +8213,9 @@ function calcCaptain(){
 function clearCaptainForm(){
   delete document.getElementById('sea-estimator').dataset.capEditId;
   ['cap-customer','cap-phone','cap-email','cap-notes','cap-year','cap-make','cap-model','cap-vesselname',
-   'cap-loa','cap-powersail','cap-pickup','cap-destination','cap-custom-price']
+   'cap-loa','cap-powersail','cap-custom-price']
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  seaAddrClear('cap-pu'); seaAddrClear('cap-dl');
   ['cap-qty','cap-mates'].forEach(id => { const el = document.getElementById(id); if (el) el.value = 0; });
   const rt = document.getElementById('cap-rate-type'); if (rt) rt.value = 'day';
   const st = document.getElementById('cap-status'); if (st) st.value = 'Estimate';
@@ -8198,7 +8235,8 @@ async function saveCaptainBid(){
     phone: seaTxt('cap-phone'), email: seaTxt('cap-email'),
     vessel: { year: seaTxt('cap-year'), make: seaTxt('cap-make'), model: seaTxt('cap-model'),
               name: seaTxt('cap-vesselname'), loa: seaTxt('cap-loa'), power_sail: seaTxt('cap-powersail') },
-    pickup: seaTxt('cap-pickup'), destination: seaTxt('cap-destination')
+    pickup: seaAddrLine(seaAddrRead('cap-pu')), destination: seaAddrLine(seaAddrRead('cap-dl')),
+    pickup_addr: seaAddrRead('cap-pu'), destination_addr: seaAddrRead('cap-dl')
   };
   const data = {
     customer, customer_phone: seaTxt('cap-phone'), customer_email: seaTxt('cap-email'),
@@ -8231,7 +8269,7 @@ function editCaptainBid(b){
   if (typeof applyPhoneFormat === 'function') applyPhoneFormat('cap-phone');
   sv('cap-year', v.year); sv('cap-make', v.make); sv('cap-model', v.model); sv('cap-vesselname', v.name);
   sv('cap-loa', v.loa); sv('cap-powersail', v.power_sail || '');
-  sv('cap-pickup', sd.pickup); sv('cap-destination', sd.destination);
+  seaAddrWrite('cap-pu', sd.pickup_addr, sd.pickup); seaAddrWrite('cap-dl', sd.destination_addr, sd.destination);
   sv('cap-rate-type', sd.rate_type === 'hour' ? 'hour' : 'day'); sv('cap-qty', sd.qty || 0); sv('cap-mates', sd.mates || 0);
   if (sd.custom_price) sv('cap-custom-price', sd.custom_price);
   syncAllFtIn();
