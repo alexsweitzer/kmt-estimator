@@ -1880,7 +1880,7 @@ if (location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1)$/.test(location
 // file's build stamp; if it's newer, a banner offers a one-tap update.
 // Bump APP_BUILD whenever a new index.html is uploaded.
 // ══════════════════════════════════════════════
-const APP_BUILD = '2026-11-25.2';
+const APP_BUILD = '2026-11-25.3';
 let appUpdateChecking = false, appUpdateLastCheck = 0;
 async function checkAppUpdate(force){
   if (appUpdateChecking || location.protocol === 'file:') return;
@@ -1904,6 +1904,210 @@ setInterval(() => checkAppUpdate(true), 5 * 60 * 1000);
 setTimeout(() => checkAppUpdate(true), 4000);
 // Tidy the address bar after an update reload
 if (/[?&]v=\d+/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+
+// ══════════════════════════════════════════════
+// AUTO-SAVE
+// • Existing load logs: saved to the database a few seconds after any change.
+//   Status, driver and co-driver still need the Save button (they trigger notifications / the Completed lock).
+// • New loads and all estimates: kept as a draft on this device as you type. If you leave without saving,
+//   a banner offers Restore / Discard the next time that form is opened.
+// ══════════════════════════════════════════════
+const AS_FORMS = {
+  land: { box: 'land-estimator', label: 'estimate' },
+  tow:  { box: 'sea-tow',        label: 'tow boat estimate' },
+  cap:  { box: 'sea-captain',    label: 'captain hire estimate' },
+  load: { box: 'loads-form-view', label: 'load log' }
+};
+const AS_NOTIFY_FIELDS = ['status', 'driver', 'codriver'];
+const asBase = {}, asLastDraft = {}, asCleanTimer = {};
+let asDbInflight = false, asLastDbJson = null, asPillTimer = null;
+
+function asKey(form){ return 'kmt-draft:' + ((currentSession && currentSession.username) || 'anon') + ':' + form; }
+function asReadDraft(form){ try { return JSON.parse(localStorage.getItem(asKey(form)) || 'null'); } catch(e) { return null; } }
+function asWriteDraft(form, d){ try { localStorage.setItem(asKey(form), JSON.stringify(d)); } catch(e) {} }
+function asRemoveDraft(form){ try { localStorage.removeItem(asKey(form)); } catch(e) {} asLastDraft[form] = null; asBanner(form, false); }
+function asVisible(id){ const el = document.getElementById(id); return !!(el && el.offsetParent !== null); }
+
+function asSnap(form){
+  if (form === 'load') {
+    const d = getLoadFormData();
+    return { editId: loadEditId || null, data: d, label: d.customer || '' };
+  }
+  const box = document.getElementById(AS_FORMS[form].box);
+  const vals = {};
+  box.querySelectorAll('input[id],select[id],textarea[id]').forEach(el => {
+    if (el.type === 'file') return;
+    vals[el.id] = (el.type === 'checkbox' || el.type === 'radio') ? el.checked : el.value;
+  });
+  const snap = { vals, label: '' };
+  if (form === 'land') {
+    snap.osow = getOsowSelections();
+    snap.editId = document.getElementById('section-estimator').dataset.editId || null;
+    snap.label = vals.customer || '';
+  } else {
+    const se = document.getElementById('sea-estimator').dataset;
+    snap.editId = (form === 'tow' ? se.editId : se.capEditId) || null;
+    snap.label = vals[form === 'tow' ? 'sea-customer' : 'cap-customer'] || '';
+  }
+  return snap;
+}
+const asJson = s => JSON.stringify({ e: s.editId, v: s.vals || s.data, o: s.osow });
+
+// Called after a form is opened, cleared or saved: the current contents become the "clean" state
+function asMarkClean(form, delay){
+  clearTimeout(asCleanTimer[form]);
+  asCleanTimer[form] = setTimeout(() => {
+    try { asBase[form] = asJson(asSnap(form)); } catch(e) {}
+  }, delay || 0);
+}
+// Called for copies: unsaved from the start, so a draft is kept right away
+function asMarkDirty(form){ clearTimeout(asCleanTimer[form]); asBase[form] = '__dirty__'; }
+function asSaved(form){ asRemoveDraft(form); asMarkClean(form, 300); }
+
+function asPill(text, warn){
+  let p = document.getElementById('autosave-pill');
+  if (!p) {
+    p = document.createElement('div'); p.id = 'autosave-pill';
+    p.style.cssText = 'position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:8000;font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.15);transition:opacity .4s;pointer-events:none';
+    document.body.appendChild(p);
+  }
+  p.textContent = text;
+  p.style.background = warn ? '#fff4e0' : '#e6f4ea';
+  p.style.color = warn ? '#9a5b00' : '#0a7d33';
+  p.style.border = '1px solid ' + (warn ? '#f5c46b' : '#a8dbb8');
+  p.style.opacity = '1';
+  clearTimeout(asPillTimer);
+  asPillTimer = setTimeout(() => { p.style.opacity = '0'; }, warn ? 6000 : 2500);
+}
+const asTime = ts => new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+function asBanner(form, show, d){
+  const id = 'draft-banner-' + form;
+  let b = document.getElementById(id);
+  if (!show) { if (b) b.remove(); return; }
+  if (b) return;
+  const box = document.getElementById(form === 'loadlist' ? 'loads-list-view' : AS_FORMS[form].box);
+  if (!box) return;
+  const realForm = form === 'loadlist' ? 'load' : form;
+  b = document.createElement('div'); b.id = id;
+  b.style.cssText = 'background:#fff8e6;border:1px solid #f5c46b;border-radius:var(--radius);padding:12px 14px;margin-bottom:1rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:#7a4b00';
+  b.innerHTML = `<div style="flex:1;min-width:180px">📝 <b>Unsaved ${AS_FORMS[realForm].label}</b>${d.label ? ' for <b>' + dvEsc(d.label) + '</b>' : ''} from ${asTime(d.ts)}${d.editId ? ' (changes to a saved record)' : ''}.</div>
+    <button class="btn sm primary" onclick="asRestore('${realForm}')">↩ Restore</button>
+    <button class="btn sm" onclick="if(confirm('Discard these unsaved changes?'))asRemoveDraft('${realForm}')">Discard</button>`;
+  box.insertBefore(b, box.firstChild);
+}
+
+function asRestore(form){
+  const d = asReadDraft(form); if (!d) return;
+  asBanner(form, false); asBanner('loadlist', false);
+  if (form === 'load') {
+    showTab('loads');
+    const realId = d.editId && loads.some(x => x.id == d.editId) ? d.editId : null;
+    loadEditId = null; showLoadsSubTab('new');
+    const tmp = { ...d.data, id: '__draft__' };
+    loads.push(tmp);
+    try { asOrig.editLoad('__draft__'); } finally { loads = loads.filter(x => x !== tmp); }
+    loadEditId = realId;
+    applyLoadLockState(d.data.status); syncDriveBtn();
+  } else {
+    showTab('estimator');
+    if (form === 'land') setEstMode('land'); else { setEstMode('sea'); setSeaKind(form === 'tow' ? 'tow' : 'captain'); }
+    if (form === 'tow') populateSeaVessels();
+    Object.entries(d.vals || {}).forEach(([id, v]) => {
+      const el = document.getElementById(id); if (!el) return;
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!v; else el.value = v;
+    });
+    if (form === 'land') {
+      restoreOsowRows(d.osow || []);
+      const ds = document.getElementById('section-estimator').dataset;
+      if (d.editId) ds.editId = d.editId; else delete ds.editId;
+    } else {
+      const ds = document.getElementById('sea-estimator').dataset, k = form === 'tow' ? 'editId' : 'capEditId';
+      if (d.editId) ds[k] = d.editId; else delete ds[k];
+    }
+    syncAllFtIn();
+    if (form === 'land') calculate(); else if (form === 'tow') calcSea(); else calcCaptain();
+  }
+  asMarkDirty(form);
+  asLastDraft[form] = null;
+  showToast('↩ Restored — remember to tap Save');
+}
+
+async function asDbSave(snap, json){
+  if (asDbInflight || json === asLastDbJson) return;
+  const cached = loads.find(x => x.id == snap.editId);
+  if (!cached) return;
+  const patch = { ...snap.data };
+  AS_NOTIFY_FIELDS.forEach(k => delete patch[k]);
+  asDbInflight = true;
+  try {
+    await sb('kmt_loads?id=eq.' + snap.editId, 'PATCH', patch);
+    asLastDbJson = json;
+    Object.assign(cached, patch);                     // keep the list / reopen in step with what's saved
+    const pending = AS_NOTIFY_FIELDS.filter(k => (snap.data[k] || null) !== (cached[k] || null));
+    if (pending.length) {
+      asWriteDraft('load', { ts: Date.now(), editId: snap.editId, data: snap.data, label: snap.label });
+      asPill('✓ Auto-saved · ' + pending.join(' / ') + ' change needs Save', true);
+    } else {
+      asRemoveDraft('load');
+      asPill('✓ Auto-saved ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+    }
+  } catch(e) {
+    asWriteDraft('load', { ts: Date.now(), editId: snap.editId, data: snap.data, label: snap.label });
+    asPill('⚠ Couldn\'t auto-save (offline?) — kept on this device', true);
+  } finally { asDbInflight = false; }
+}
+
+function asTick(){
+  if (!currentSession) return;
+  for (const form of Object.keys(AS_FORMS)) {
+    if (!asVisible(AS_FORMS[form].box)) continue;
+    let snap; try { snap = asSnap(form); } catch(e) { continue; }
+    const json = asJson(snap);
+    if (asBase[form] === undefined) { asBase[form] = json; continue; }
+    const dirty = json !== asBase[form];
+    const draft = asReadDraft(form);
+    if (dirty) {
+      asBanner(form, false);
+      if (json === asLastDraft[form]) continue;
+      asLastDraft[form] = json;
+      const lockedLoad = form === 'load' && document.getElementById('saveLoadBtn').disabled && document.getElementById('ld-customer').disabled;
+      if (lockedLoad) continue;
+      if (form === 'load' && snap.editId) { asDbSave(snap, json); continue; }
+      asWriteDraft(form, { ts: Date.now(), ...snap });
+      asPill('✓ Draft saved on this device — tap Save when done');
+    } else if (draft) {
+      asBanner(form, true, draft);
+    }
+  }
+  if (asVisible('loads-list-view')) { const d = asReadDraft('load'); asBanner('loadlist', !!d, d); }
+}
+
+// Hook the existing open / clear / copy / save points
+const asOrig = {};
+function asWrap(name, after){
+  const fn = window[name]; if (typeof fn !== 'function') return;
+  asOrig[name] = fn;
+  window[name] = function(...args){ const r = fn.apply(this, args); after(args, r); return r; };
+}
+function asFormOfBid(id){ const b = bids.find(x => x.id == id); const t = b ? bidType(b) : 'truck'; return t === 'boat' ? 'tow' : t === 'captain' ? 'cap' : 'land'; }
+function asInstallHooks(){
+  asWrap('clearForm',        () => asMarkClean('land', 50));
+  asWrap('clearSeaForm',     () => asMarkClean('tow', 50));
+  asWrap('clearCaptainForm', () => asMarkClean('cap', 50));
+  asWrap('editBid',          ([id]) => asMarkClean(asFormOfBid(id), 400));
+  asWrap('copyBid',          ([id]) => asMarkDirty(asFormOfBid(id)));
+  asWrap('editLoad',         () => asMarkClean('load', 400));
+  asWrap('viewLockedLoad',   () => asMarkClean('load', 400));
+  asWrap('clearLoadForm',    () => asMarkClean('load', 800));   // after the driver name pre-fill
+  asWrap('copyLoad',         () => asMarkDirty('load'));
+}
+window.addEventListener('load', () => {
+  asInstallHooks();
+  setInterval(asTick, 3000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') asTick(); });
+  window.addEventListener('pagehide', asTick);
+});
 
 // ── Google Maps API key ── paste the current key from Google Cloud → Credentials here (one place only)
 const GOOGLE_MAPS_KEY = 'AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g';
@@ -2410,6 +2614,7 @@ async function saveBid(){
     }
     if(editId){delete document.getElementById('section-estimator').dataset.editId;showToast('Bid updated ✓');}
     else{showToast('Bid saved ✓');}
+    asSaved('land');
     await loadBidsFromDB();showTab('bids');
   }catch(e){
     const msg = e && e.message ? e.message : String(e);
@@ -3332,6 +3537,7 @@ async function saveLoad() {
       if (errDiv) errDiv.remove();
       showToast('Load log saved ✓');
     }
+    asSaved('load'); asLastDbJson = null;
     // Notify the driver if they were just assigned this load, or it just went Ready
     notifyOnLoadSave(data, prev);
     // Auto-expire any client tracking links tied to this load when it completes
@@ -8366,6 +8572,7 @@ async function saveSeaBid(){
   try {
     await writeSeaBid(data, editId);
     showToast(editId ? 'Bid updated ✓' : 'Bid saved ✓');
+    asSaved('tow');
     clearSeaForm();
     await loadBidsFromDB();
     showTab('bids');
@@ -8472,6 +8679,7 @@ async function saveCaptainBid(){
   try {
     await writeSeaBid(data, editId);
     showToast(editId ? 'Bid updated ✓' : 'Bid saved ✓');
+    asSaved('cap');
     clearCaptainForm();
     await loadBidsFromDB();
     showTab('bids');
