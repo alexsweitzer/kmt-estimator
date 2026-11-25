@@ -232,6 +232,33 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
   .overlay{align-items:center;padding:1rem}
   .modal{border-radius:var(--radius-lg);max-height:85vh}
 }
+/* ── DRIVE VIEW: big, high-contrast load summary for use in the truck ── */
+#drive-view{position:fixed;inset:0;z-index:9000;background:#0d1526;color:#fff;overflow-y:auto;-webkit-overflow-scrolling:touch;font-size:20px;line-height:1.35;display:none}
+#drive-view.open{display:block}
+#drive-view .dv-top{position:sticky;top:0;z-index:2;background:#0d1526;border-bottom:2px solid #e8a020;display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px}
+#drive-view .dv-title{flex:1;min-width:0;font-size:15px;font-weight:800;letter-spacing:.06em;color:#e8a020;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#drive-view .dv-chip{font-size:14px;font-weight:700;background:#f5b83d;color:#1a2744;border-radius:999px;padding:4px 12px}
+#drive-view .dv-normal{font:inherit;font-size:16px;font-weight:700;background:#243258;color:#fff;border:2px solid #4a5f94;border-radius:12px;padding:10px 14px;min-height:48px}
+#drive-view .dv-body{max-width:720px;margin:0 auto;padding:16px 16px calc(28px + env(safe-area-inset-bottom))}
+#drive-view .dv-cust{font-size:30px;font-weight:800;margin:4px 0 2px}
+#drive-view .dv-boat{font-size:20px;color:#c7d2ea;margin-bottom:14px}
+#drive-view .dv-sec{background:#16213a;border:1px solid #2e3f6b;border-radius:16px;padding:14px 16px;margin-bottom:14px}
+#drive-view .dv-label{font-size:14px;font-weight:800;letter-spacing:.1em;color:#e8a020;text-transform:uppercase;margin-bottom:6px}
+#drive-view .dv-place{font-size:24px;font-weight:700}
+#drive-view .dv-addr{font-size:19px;color:#c7d2ea;margin-top:2px}
+#drive-view .dv-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:64px;margin-top:12px;border-radius:14px;border:none;font:inherit;font-size:21px;font-weight:800;text-decoration:none;cursor:pointer;background:#e8a020;color:#1a2744;text-align:center;padding:8px 12px;box-sizing:border-box}
+#drive-view .dv-btn.alt{background:#243258;color:#fff;border:2px solid #4a5f94}
+#drive-view .dv-btn.call{background:#18a058;color:#fff}
+#drive-view .dv-btn.off{background:#1c2740;color:#6b7a99;border:2px dashed #3a4a70;cursor:not-allowed;flex-direction:column;gap:2px}
+#drive-view .dv-btn.off small{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a97b5}
+#drive-view .dv-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#drive-view .dv-tile{background:#0d1526;border:1px solid #2e3f6b;border-radius:12px;padding:10px 12px}
+#drive-view .dv-tile .k{font-size:13px;font-weight:700;letter-spacing:.08em;color:#9fb0d4;text-transform:uppercase}
+#drive-view .dv-tile .v{font-size:26px;font-weight:800;margin-top:2px}
+#drive-view .dv-tile.warn{border-color:#f5b83d}
+#drive-view .dv-tile.warn .v{color:#f5b83d}
+#drive-view .dv-notes{font-size:21px;white-space:pre-wrap}
+#drive-view .dv-hint{font-size:15px;color:#9fb0d4;margin-top:8px}
 </style>
 </head>
 <body>
@@ -948,6 +975,9 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 
   <!-- NEW / EDIT FORM VIEW -->
   <div id="loads-form-view" style="display:none">
+    <div id="ld-drive-btn-wrap" style="display:none;margin-bottom:1rem">
+      <button class="btn accent" onclick="openDriveView(loadEditId)" style="width:100%;font-size:17px;padding:14px;font-weight:700">🚚 Switch to Drive View</button>
+    </div>
 
     <!-- FILL FROM BID -->
     <div class="card" style="background:var(--blue-bg);border-color:#b8d0f5">
@@ -3274,6 +3304,8 @@ async function saveLoad() {
     }
     await loadLogsFromDB();
     showLoadsSubTab('list');
+    // Just started this load → open the large-print Drive View
+    if (data.status === 'In Progress' && data.__id && (!prev || prev.status !== 'In Progress')) openDriveView(data.__id);
   } catch(e) {
     const msg = e && e.message ? e.message : String(e);
     showSaveError(msg);
@@ -3283,6 +3315,7 @@ async function saveLoad() {
 }
 
 function onStatusChange() {
+  syncDriveBtn();
   const val = document.getElementById('ld-status').value;
   const warn = document.getElementById('ld-status-warning');
   if (warn) warn.style.display = val === 'Completed' ? 'block' : 'none';
@@ -3334,6 +3367,7 @@ function renderLoadsList() {
           <div style="font-size:13px;font-weight:600;color:var(--text-muted)">${l.miles_total ? l.miles_total + ' mi' : ''}</div>
           <button class="btn sm" onclick="exportLoadPDF('${l.id}', event)" style="font-size:11px;padding:3px 10px">📄 PDF</button>
           <button class="btn sm" onclick="copyLoad('${l.id}', event)" style="font-size:11px;padding:3px 10px">📋 Copy</button>
+          ${l.status === 'In Progress' ? `<button class="btn sm accent" onclick="event.stopPropagation();openDriveView('${l.id}')" style="font-size:11px;padding:3px 10px;font-weight:700">🚚 Drive View</button>` : ''}
           ${isAdmin ? `<button class="btn sm danger" onclick="event.stopPropagation();deleteLoad('${l.id}')" style="font-size:11px;padding:3px 8px">🗑 Delete</button>` : ''}
         </div>
       </div>
@@ -3411,6 +3445,7 @@ function editLoad(id) {
   populateEquipDropdowns();
   onTruckManualInput();
   setTimeout(() => renderPermitGrid(), 50);
+  syncDriveBtn();
   showToast('Editing load log — tap Save when done');
 }
 
@@ -3437,6 +3472,109 @@ function copyLoad(id, ev){
   applyLoadLockState('Ready');                  // a copy of a Completed load is editable
   window.scrollTo({ top: 0, behavior: 'smooth' });
   showToast('📋 Copied as a new load — set the date, then Save');
+}
+
+// ══════════════════════════════════════════════
+// DRIVE VIEW — one-screen, large-print load summary for the driver
+// Opens automatically when a load is saved as In Progress; "Normal View" goes back to the full log.
+// ══════════════════════════════════════════════
+let driveViewId = null, driveWakeLock = null;
+// Navigation buttons stay greyed out until the permit-routing app is integrated. Flip to true to turn them on.
+const DRIVE_NAV_ENABLED = false;
+function dvEsc(v){ return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function dvMapsUrl(addr){
+  const q = encodeURIComponent(addr);
+  const apple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && 'ontouchend' in document);
+  return apple ? 'https://maps.apple.com/?daddr=' + q + '&dirflg=d'
+               : 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + q;
+}
+function dvNavBtn(nav, label){
+  if (!DRIVE_NAV_ENABLED) return `<div class="dv-btn off" aria-disabled="true">🧭 Navigate to ${label}<small>Coming Soon</small></div>`;
+  return nav ? `<a class="dv-btn" href="${dvMapsUrl(nav)}" target="_blank" rel="noopener">🧭 Navigate to ${label}</a>` : '';
+}
+async function dvKeepAwake(on){
+  try {
+    if (on && 'wakeLock' in navigator && document.visibilityState === 'visible') driveWakeLock = await navigator.wakeLock.request('screen');
+    if (!on && driveWakeLock) { await driveWakeLock.release(); driveWakeLock = null; }
+  } catch(e) { /* not supported — screen follows the phone's auto-lock */ }
+}
+document.addEventListener('visibilitychange', () => { if (driveViewId && document.visibilityState === 'visible') dvKeepAwake(true); });
+
+function openDriveView(id){
+  const l = loads.find(x => x.id == id);
+  if (!l) { showToast('Save the load first'); return; }
+  driveViewId = id;
+  const sea = l.transport_mode === 'sea';
+  const place = (name, street, city) => {
+    const addr = [street, city].filter(Boolean).join(', ');
+    const nav = [street ? '' : name, street, city].filter(Boolean).join(', ');
+    return { html: `<div class="dv-place">${dvEsc(name || street || city || '—')}</div>${addr && name ? `<div class="dv-addr">${dvEsc(addr)}</div>` : ''}`, nav };
+  };
+  const pu = place(l.pickup_name, l.pickup_street, l.pickup_city);
+  const dl = place(l.delivery_name, l.delivery_street, l.delivery_city);
+  const ft = v => v ? (fmtFtIn(v) || v + ' ft') : '—';
+  const phone = String(l.contact || '').replace(/[^\d+]/g, '');
+  const ht = parseFloat(l.loaded_height || l.height);
+  const tiles = sea
+    ? [['Service', l.sea_service === 'captain' ? 'Captain Hire' : 'Tow'], ['Vessel', (l.captain_log && l.captain_log.vessel) || '—'],
+       ['LOA', ft(l.loa)], ['Beam', ft(l.beam)]]
+    : [['LOA', ft(l.loa)], ['Beam', ft(l.beam), parseFloat(l.beam) > 8.5],
+       [l.loaded_height ? 'Loaded Height' : 'Height', ft(l.loaded_height || l.height), ht > 13.5],
+       ['Weight', l.weight ? Number(l.weight).toLocaleString() + ' lbs' : '—']];
+  const permits = (l.state_permits || []).filter(p => p && p.url);
+  const dv = document.getElementById('drive-view');
+  dv.innerHTML = `
+    <div class="dv-top">
+      <div class="dv-title">${sea ? '⛵' : '🚚'} DRIVE VIEW</div>
+      <span class="dv-chip">${dvEsc(l.status || 'In Progress')}</span>
+      <button class="dv-normal" onclick="closeDriveView(true)">Normal View</button>
+    </div>
+    <div class="dv-body">
+      <div class="dv-cust">${dvEsc(l.customer || 'No customer')}</div>
+      <div class="dv-boat">${dvEsc([l.make, l.model, l.boatname ? '“' + l.boatname + '”' : ''].filter(Boolean).join(' ') || '—')}</div>
+      ${phone ? `<a class="dv-btn call" href="tel:${dvEsc(phone)}">📞 Call Customer · ${dvEsc(l.contact)}</a>` : ''}
+      <div class="dv-sec" style="margin-top:14px">
+        <div class="dv-label">Pickup</div>${pu.html}
+        ${dvNavBtn(pu.nav, 'Pickup')}
+      </div>
+      <div class="dv-sec">
+        <div class="dv-label">Delivery</div>${dl.html}
+        ${dvNavBtn(dl.nav, 'Delivery')}
+        ${sea || !DRIVE_NAV_ENABLED ? '' : '<div class="dv-hint">Phone maps don\'t follow oversize permits. Stay on your permitted route.</div>'}
+      </div>
+      <div class="dv-sec">
+        <div class="dv-label">${sea ? 'Job' : 'Load'}</div>
+        <div class="dv-grid">${tiles.map(t => `<div class="dv-tile${t[2] ? ' warn' : ''}"><div class="k">${dvEsc(t[0])}</div><div class="v">${dvEsc(t[1])}</div></div>`).join('')}</div>
+        ${(l.truck || l.trailer) ? `<div style="font-size:18px;margin-top:12px">${l.truck ? 'Truck <b>' + dvEsc(l.truck) + '</b>' : ''}${l.truck && l.trailer ? ' · ' : ''}${l.trailer ? 'Trailer <b>' + dvEsc(l.trailer) + '</b>' : ''}</div>` : ''}
+      </div>
+      ${sea ? '' : `<div class="dv-sec">
+        <div class="dv-label">Permits</div>
+        ${permits.length ? permits.map(p => `<a class="dv-btn alt" href="${dvEsc(p.url)}" target="_blank" rel="noopener">📄 ${dvEsc(p.name || 'Permit')}</a>`).join('') : '<div class="dv-addr">No permits attached to this load.</div>'}
+      </div>`}
+      ${l.notes ? `<div class="dv-sec"><div class="dv-label">Notes</div><div class="dv-notes">${dvEsc(l.notes)}</div></div>` : ''}
+      <button class="dv-btn alt" onclick="closeDriveView(true)">📝 Open Full Load Log</button>
+      <button class="dv-btn alt" onclick="closeDriveView(false)" style="min-height:52px;font-size:18px">Close</button>
+    </div>`;
+  dv.classList.add('open');
+  dv.scrollTop = 0;
+  document.body.style.overflow = 'hidden';
+  dvKeepAwake(true);
+}
+function closeDriveView(toLog){
+  const id = driveViewId;
+  driveViewId = null;
+  document.getElementById('drive-view').classList.remove('open');
+  document.body.style.overflow = '';
+  dvKeepAwake(false);
+  if (toLog && id) {
+    if (typeof showTab === 'function') showTab('loads');
+    const l = loads.find(x => x.id == id);
+    if (l && l.status === 'Completed' && !(currentSession && currentSession.role === 'admin')) viewLockedLoad(id); else editLoad(id);
+  }
+}
+function syncDriveBtn(){
+  const wrap = document.getElementById('ld-drive-btn-wrap');
+  if (wrap) wrap.style.display = (loadEditId && document.getElementById('ld-status').value === 'In Progress') ? '' : 'none';
 }
 
 function applyLoadLockState(status) {
@@ -3475,6 +3613,7 @@ function applyLoadLockState(status) {
 
 function clearLoadForm() {
   loadEditId = null;
+  { const w = document.getElementById('ld-drive-btn-wrap'); if (w) w.style.display = 'none'; }
   ['ld-date','ld-date-end','ld-time-start','ld-time-end','ld-trip-price','ld-payment-type','ld-truck','ld-trailer','ld-driver','ld-codriver','ld-customer','ld-contact','ld-ct-year','ld-ct-make','ld-ct-model','ld-ct-vin','ld-ct-plate','ld-ct-axles',
    'ld-make','ld-model','ld-loa','ld-beam','ld-color','ld-boatname','ld-weight','ld-height',
    'ld-hullid','ld-regdoc','ld-loadedheight','ld-pickup-name','ld-pickup-street','ld-pickup-city',
@@ -9372,5 +9511,6 @@ function exportIftaPDF(cIn, metaIn){
 }
 
 </script>
+<div id="drive-view" role="dialog" aria-label="Drive view"></div>
 </body>
 </html>
