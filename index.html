@@ -259,6 +259,11 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 #drive-view .dv-tile.warn .v{color:#f5b83d}
 #drive-view .dv-notes{font-size:21px;white-space:pre-wrap}
 #drive-view .dv-hint{font-size:15px;color:#9fb0d4;margin-top:8px}
+/* ── New-version banner ── */
+#update-banner{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:9500;display:none;align-items:center;gap:12px;background:#1a2744;color:#fff;border:2px solid #e8a020;border-radius:14px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:15px}
+#update-banner.show{display:flex}
+#update-banner b{color:#f5b83d}
+#update-banner button{margin-left:auto;font:inherit;font-weight:800;background:#e8a020;color:#1a2744;border:none;border-radius:10px;padding:10px 16px;min-height:44px;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -1869,6 +1874,37 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sy
 if (location.protocol === 'http:' && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
   location.replace('https://' + location.host + location.pathname + location.search + location.hash);
 }
+// ══════════════════════════════════════════════
+// UPDATE CHECK — phones (especially Home Screen apps) can keep an old copy open for days.
+// Every time the portal comes back to the foreground (and every 5 min) it checks the live
+// file's build stamp; if it's newer, a banner offers a one-tap update.
+// Bump APP_BUILD whenever a new index.html is uploaded.
+// ══════════════════════════════════════════════
+const APP_BUILD = '2026-11-25.2';
+let appUpdateChecking = false, appUpdateLastCheck = 0;
+async function checkAppUpdate(force){
+  if (appUpdateChecking || location.protocol === 'file:') return;
+  if (!force && Date.now() - appUpdateLastCheck < 60000) return;
+  appUpdateChecking = true; appUpdateLastCheck = Date.now();
+  try {
+    const r = await fetch(location.pathname + '?build-check=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const m = (await r.text()).match(new RegExp('const APP_' + "BUILD = '([^']+)'"));
+    if (m && m[1] !== APP_BUILD) document.getElementById('update-banner').classList.add('show');
+  } catch(e) { /* offline — try again later */ }
+  finally { appUpdateChecking = false; }
+}
+function applyAppUpdate(){
+  // Reload past any cached copy
+  location.replace(location.pathname + '?v=' + Date.now() + location.hash);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkAppUpdate(); });
+window.addEventListener('focus', () => checkAppUpdate());
+setInterval(() => checkAppUpdate(true), 5 * 60 * 1000);
+setTimeout(() => checkAppUpdate(true), 4000);
+// Tidy the address bar after an update reload
+if (/[?&]v=\d+/.test(location.search)) history.replaceState(null, '', location.pathname + location.hash);
+
 // ── Google Maps API key ── paste the current key from Google Cloud → Credentials here (one place only)
 const GOOGLE_MAPS_KEY = 'AIzaSyBfo2Nb2hWGKEtfNYKEc9iefQRwMqGBF7g';
 const SB_URL = 'https://kdtlhddkthghqllkshbb.supabase.co';
@@ -9512,5 +9548,6 @@ function exportIftaPDF(cIn, metaIn){
 
 </script>
 <div id="drive-view" role="dialog" aria-label="Drive view"></div>
+<div id="update-banner" role="status"><div>🔄 <b>New version of the portal</b><br>Tap Update to load it.</div><button onclick="applyAppUpdate()">Update</button></div>
 </body>
 </html>
