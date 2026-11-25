@@ -2557,6 +2557,7 @@ function viewBid(id){
       <button class="btn" onclick="printBid('${b.id}','customer')">🖨 Customer Quote</button>
       <button class="btn" onclick="printBid('${b.id}','internal')">🖨 Internal Sheet</button>
       <button class="btn" onclick="editBid('${b.id}');this.closest('.overlay').remove()">✏️ Edit</button>
+      <button class="btn" onclick="copyBid('${b.id}');this.closest('.overlay').remove()">📋 Copy</button>
       <button class="btn danger" onclick="if(confirm('Delete this bid?')){deleteBid('${b.id}');this.closest('.overlay').remove()}">🗑 Delete</button>
     </div>
   </div>`;
@@ -2800,6 +2801,26 @@ function editBid(id){
   document.getElementById('section-estimator').dataset.editId=id;
   calculate();showTab('estimator');showToast('Editing — tap Save Bid when done');
 }
+// Copy a saved bid into a new, unsaved estimate (same customer / boat / route — change what's different, then Save Bid)
+function copyBid(id){
+  const b = bids.find(x => x.id == id); if (!b) return;
+  editBid(id);                                   // fills the right form (land / tow / captain)
+  const t = bidType(b);
+  const sv = (i, v) => { const el = document.getElementById(i); if (el) el.value = v; };
+  if (t === 'boat') {
+    delete document.getElementById('sea-estimator').dataset.editId;
+    sv('sea-date', todayISO()); sv('sea-status', 'Estimate');
+  } else if (t === 'captain') {
+    delete document.getElementById('sea-estimator').dataset.capEditId;
+    sv('cap-date', todayISO()); sv('cap-status', 'Estimate');
+  } else {
+    delete document.getElementById('section-estimator').dataset.editId;
+    sv('bidDate', todayISO()); sv('status', 'Estimate');
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  showToast('📋 Copied as a new estimate — change what\'s different, then Save Bid');
+}
+
 async function deleteBid(id){
   try{await sb('kmt_bids?id=eq.'+id,'DELETE');await loadBidsFromDB();showToast('Bid deleted');}catch(e){showToast('Delete failed');}
 }
@@ -3312,6 +3333,7 @@ function renderLoadsList() {
           ${l.trip_price ? `<div style="font-size:15px;font-weight:700;color:var(--text)">${fmt(l.trip_price)}</div>` : ''}
           <div style="font-size:13px;font-weight:600;color:var(--text-muted)">${l.miles_total ? l.miles_total + ' mi' : ''}</div>
           <button class="btn sm" onclick="exportLoadPDF('${l.id}', event)" style="font-size:11px;padding:3px 10px">📄 PDF</button>
+          <button class="btn sm" onclick="copyLoad('${l.id}', event)" style="font-size:11px;padding:3px 10px">📋 Copy</button>
           ${isAdmin ? `<button class="btn sm danger" onclick="event.stopPropagation();deleteLoad('${l.id}')" style="font-size:11px;padding:3px 8px">🗑 Delete</button>` : ''}
         </div>
       </div>
@@ -3390,6 +3412,31 @@ function editLoad(id) {
   onTruckManualInput();
   setTimeout(() => renderPermitGrid(), 50);
   showToast('Editing load log — tap Save when done');
+}
+
+// Copy a load into a new, unsaved load log. Keeps customer, boat, pickup/delivery, price, payment,
+// truck/trailer, crew and notes. Clears everything that belongs to one trip: dates/times, odometer,
+// fuel, inspections, damage, signatures, photos, permits and the captain's trip log.
+function copyLoad(id, ev){
+  if (ev) ev.stopPropagation();
+  const l = loads.find(x => x.id == id); if (!l) return;
+  const cl = l.captain_log || null;
+  const c = { ...l, id: '__copy__', status: 'Ready', date: todayISO(), date_end: null, start_time: null, end_time: null,
+    miles_start: null, miles_stop: null, miles_total: null, fuel_log: [],
+    damage_areas: [], damage_notes: null, truck_inspection: null, trailer_inspection: null,
+    vehicle_satisfactory: false, defect_status: null, sig_driver: null, sig_mechanic: null,
+    pretrip_photos: [], posttrip_photos: [], state_permits: [],
+    captain_log: cl ? { captain: cl.captain, mate: cl.mate, vessel: cl.vessel } : null };
+  loadEditId = null;
+  showLoadsSubTab('new');                       // opens a clean form
+  loads.push(c);
+  try { editLoad('__copy__'); }                 // reuse the normal fill-in logic
+  finally { loads = loads.filter(x => x !== c); }
+  loadEditId = null;                            // saving creates a new load, never overwrites the original
+  document.getElementById('ld-status').value = 'Ready';
+  applyLoadLockState('Ready');                  // a copy of a Completed load is editable
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  showToast('📋 Copied as a new load — set the date, then Save');
 }
 
 function applyLoadLockState(status) {
